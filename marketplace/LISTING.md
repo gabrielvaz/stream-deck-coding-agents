@@ -11,42 +11,44 @@ Everything Maker Console asks for, ready to paste. The Marketplace requires Engl
 - **Plugin file:** `dist/com.gabrielvaz.coding-agents.streamDeckPlugin` (`npm run pack`, or the GitHub release asset)
 - **App icon (288×288):** `marketplace/app-icon-288.png`
 - **Thumbnail (1920×960):** `marketplace/gallery/1-hero.png`
-- **Gallery (1920×960):** `marketplace/gallery/1-hero.png`, `2-states.png`, `3-approve.png` (+ the demo video, see below)
+- **Gallery (1920×960):** `marketplace/gallery/1-hero.png`, `2-states.png`, `3-approve.png`, `4-themes.png` (+ the demo video, see below)
 
 ## Description
 
 The first 250 characters are plain text and show in search results.
 
 ```
-See every AI coding agent at a glance. Each Stream Deck key shows one Claude Code, Codex, Antigravity CLI or Gemini CLI session: its state, timer, current tool or live text, and a glowing orb. Press to jump to its window, hold to approve a request.
+See every AI coding agent at a glance. Each Stream Deck key shows one Claude Code, Codex, Antigravity CLI or Gemini CLI session: its state, timer, current tool or live text, and an animation. Press to jump to its window, hold to approve a request.
 
 Keys
-• Agent Session: one live session per key. Sessions waiting for you come first, then working ones, then finished ones.
-• Agents Overview: how many agents are working, waiting and done, with one coloured pip per session. Press to open the first session that needs you.
+• Agent Session: one live session per key, sorted so the ones waiting for you come first.
+• Agents Overview: how many are working, waiting and done. Press to open the first session that needs you.
 • Allow / Deny: answer the oldest Claude Code or Codex permission request.
 • Next Page: more sessions than keys? Flip pages.
 
-Setup in one click
-Open any key's settings and press Connect next to each agent. The plugin adds its hooks to that agent's settings file (with a backup) and removes only its own entries when you disconnect. It uses Stream Deck's built-in Node.js runtime, so there is nothing else to install. Agents inside WSL are supported on Windows.
+Four themes: Pulse, Glow, Clawd (a pixel critter that types, waves, sleeps and celebrates) and Minimal.
 
-Private
-Everything stays on your computer: a local, token-protected endpoint on 127.0.0.1, no account, no analytics.
+Setup in one click: press Connect next to each agent in a key's settings. The plugin adds its hooks with a backup and uses Stream Deck's built-in Node.js, so there is nothing else to install. Works with agents in WSL, on servers over SSH, and every agent herdr runs (Cursor, Copilot, OpenCode and more).
 
-Requirements
-Stream Deck 7.1 or later on Windows 10+ or macOS 12+, and at least one of: Claude Code 2.1.214+, OpenAI Codex CLI, Google Antigravity CLI, Gemini CLI. Codex asks you to trust new hooks once (/hooks). Allow / Deny works with Claude Code and Codex.
+Private: everything stays on your computer. No account, no analytics.
+
+Requirements: Stream Deck 7.1+ on Windows 10+ or macOS 12+, and Claude Code, Codex CLI, Antigravity CLI, Gemini CLI or herdr.
 ```
 
 ## Additional links
 
 - **Support:** https://github.com/gabrielvaz/stream-deck-coding-agents/issues
 - **Privacy policy:** https://github.com/gabrielvaz/stream-deck-coding-agents/blob/main/marketplace/PRIVACY.md
+- **Website:** https://gabrielvaz.github.io/stream-deck-coding-agents/ (enable GitHub Pages: Settings → Pages → main, /docs)
 - **Source / documentation:** https://github.com/gabrielvaz/stream-deck-coding-agents
 
 ## Release notes (1.0.0)
 
 ```
 First release.
-• Live keys for Claude Code, Codex, Antigravity CLI and Gemini CLI sessions: state, timer, tool, streamed text, breathing orb.
+• Live keys for Claude Code, Codex, Antigravity CLI and Gemini CLI sessions: state, timer, tool, streamed text.
+• Four themes: Pulse, Glow, Clawd and Minimal; every state has its own motion.
+• herdr agents, Claude Code background sessions, WSL and SSH remotes.
 • Press to open the session window (Windows Terminal tab, VS Code, Terminal.app, iTerm2…), hold to allow a permission request.
 • Overview, Allow, Deny and Next Page keys.
 • One-click connect per agent, including agents inside WSL on Windows.
@@ -61,3 +63,4 @@ First release.
 - [ ] **Version.** Bump `package.json`, `src/settings.ts` (`VERSION`) and `manifest.json` (`x.y.z.0`) together; `npm test` checks they match.
 - [ ] `npm run validate` and `npm run pack`, then upload `dist/com.gabrielvaz.coding-agents.streamDeckPlugin` in Maker Console (Create product → Stream Deck plugin).
 - [ ] The UUID `com.gabrielvaz.coding-agents` can never change after the first publication.
+- [ ] **Trademarks.** The Clawd theme draws an original pixel critter inspired by Claude Code's mascot, and the badges use generic glyphs (no third-party logos). If a reviewer objects to the mascot, rename the theme (e.g. "Critter") in `src/render/tiles.ts` and the setup page; the drawing itself needs no change.

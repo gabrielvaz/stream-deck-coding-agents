@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Coding Agents for Stream Deck: Claude Code, Codex, Antigravity and Gemini on your keys</title>
+		<meta name="description" content="Every AI coding agent session on its own Stream Deck key: state, timer, tool, live text. Press to jump to its window, hold to approve. Free for Windows and macOS." />
+		<meta property="og:title" content="Coding Agents for Stream Deck" />
+		<meta property="og:description" content="Claude Code, Codex, Antigravity and Gemini sessions live on your Stream Deck. Press to jump, hold to approve." />
+		<meta property="og:image" content="https://raw.githubusercontent.com/gabrielvaz/stream-deck-coding-agents/main/docs/gallery-1-hero.png" />
+		<link rel="icon" href="assets/icon.png" />
+		<style>
+			:root {
+				--bg: #0a0b0e;
+				--panel: #121419;
+				--line: #23262e;
+				--text: #eef0f3;
+				--muted: #9aa1ac;
+				--amber: #ffb238;
+				--blue: #3f8cff;
+				--teal: #1fd8a4;
+				--violet: #8c7cff;
+				--radius: 18px;
+			}
+			* { box-sizing: border-box; }
+			html { scroll-behavior: smooth; }
+			body {
+				margin: 0; background: var(--bg); color: var(--text);
+				font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+				-webkit-font-smoothing: antialiased;
+			}
+			a { color: inherit; }
+			.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+			nav { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px); background: rgba(10, 11, 14, 0.78); border-bottom: 1px solid var(--line); }
+			nav .wrap { display: flex; align-items: center; gap: 22px; height: 64px; }
+			nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; text-decoration: none; }
+			nav .brand img { width: 30px; height: 30px; border-radius: 8px; }
+			nav .links { margin-left: auto; display: flex; gap: 20px; font-size: 15px; }
+			nav .links a { text-decoration: none; color: var(--muted); }
+			nav .links a:hover { color: var(--text); }
+			.btn {
+				display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 12px;
+				font-weight: 700; text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+			}
+			.btn.primary { background: var(--text); color: #0b0c0f; border-color: var(--text); }
+			.btn:hover { transform: translateY(-1px); }
+			header.hero { padding: 72px 0 40px; background: radial-gradient(900px 480px at 75% 30%, rgba(63, 140, 255, 0.16), transparent 70%), radial-gradient(700px 420px at 20% 60%, rgba(255, 178, 56, 0.12), transparent 70%); }
+			.hero .grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; }
+			.eyebrow { color: var(--amber); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-size: 13px; }
+			h1 { font-size: clamp(40px, 5.4vw, 64px); line-height: 1.04; margin: 14px 0 18px; letter-spacing: -0.02em; }
+			.lead { font-size: 20px; color: #c7ccd4; margin: 0 0 28px; }
+			.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+			.meta { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
+			.meta span { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; }
+			.device {
+				display: inline-grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 22px; border-radius: 34px;
+				background: linear-gradient(160deg, #2a2c31, #141518); box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07); width: 100%;
+			}
+			.device img { width: 100%; aspect-ratio: 1; border-radius: 18%; display: block; background: #000; box-shadow: 0 0 0 2px #08090a, 0 5px 12px rgba(0, 0, 0, 0.45); }
+			.tabs { display: flex; gap: 8px; margin: 18px 0 8px; flex-wrap: wrap; }
+			.tabs button {
+				font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+				padding: 7px 14px; border-radius: 999px; cursor: pointer;
+			}
+			.tabs button[aria-pressed="true"] { color: #0b0c0f; background: var(--text); border-color: var(--text); }
+			#theme-note { color: var(--muted); font-size: 15px; min-height: 2.4em; margin: 0; }
+			section { padding: 84px 0; border-top: 1px solid var(--line); }
+			h2 { font-size: clamp(30px, 3.6vw, 42px); line-height: 1.1; margin: 0 0 14px; letter-spacing: -0.01em; }
+			.sub { color: var(--muted); max-width: 720px; margin: 0 0 40px; font-size: 18px; }
+			.legend { display: grid; grid-template-columns: repeat(5, 1fr); gap: 22px; }
+			.legend figure { margin: 0; text-align: center; }
+			.legend img { width: 100%; aspect-ratio: 1; border-radius: 18%; background: #000; display: block; }
+			.legend figcaption { margin-top: 10px; font-weight: 700; }
+			.legend figcaption small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; line-height: 1.4; }
+			.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+			.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; }
+			.card h3 { margin: 8px 0 8px; font-size: 20px; }
+			.card p { margin: 0; color: #b9bfc9; font-size: 16px; }
+			.card .icon { font-size: 26px; }
+			table { width: 100%; border-collapse: collapse; font-size: 16px; }
+			th, td { text-align: left; padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+			th { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+			td small { color: var(--muted); display: block; }
+			.yes { color: var(--teal); font-weight: 700; }
+			.part { color: var(--amber); font-weight: 700; }
+			.no { color: #6b717c; }
+			.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
+			.step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; }
+			.step::before { counter-increment: step; content: counter(step); display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--text); color: #0b0c0f; font-weight: 800; }
+			.step h3 { margin: 14px 0 6px; }
+			.step p { margin: 0; color: #b9bfc9; }
+			code { font-family: Menlo, Consolas, monospace; font-size: 0.9em; background: #1b1e24; padding: 2px 6px; border-radius: 6px; }
+			pre { background: #0f1115; border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow: auto; font-size: 14px; }
+			details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+			details summary { cursor: pointer; font-weight: 700; font-size: 18px; }
+			details p { color: #b9bfc9; margin: 10px 0 0; }
+			footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+			@media (max-width: 900px) {
+				.hero .grid { grid-template-columns: 1fr; }
+				.cards, .steps { grid-template-columns: 1fr; }
+				.legend { grid-template-columns: repeat(3, 1fr); }
+				nav .links { display: none; }
+				.device { gap: 8px; padding: 14px; border-radius: 24px; }
+			}
+		</style>
+	</head>
+	<body>
+		<nav>
+			<div class="wrap">
+				<a class="brand" href="#"><img src="assets/icon.png" alt="" />Coding Agents</a>
+				<div class="links">
+					<a href="#states">States</a>
+					<a href="#features">Features</a>
+					<a href="#agents">Agents</a>
+					<a href="#install">Install</a>
+					<a href="#faq">FAQ</a>
+					<a href="https://github.com/gabrielvaz/stream-deck-coding-agents">GitHub</a>
+				</div>
+			</div>
+		</nav>
+
+		<header class="hero">
+			<div class="wrap grid">
+				<div>
+					<div class="eyebrow">Elgato Stream Deck plugin</div>
+					<h1>Your coding agents, live on your keys.</h1>
+					<p class="lead">Every Claude Code, Codex, Antigravity and Gemini session gets its own key: its state, timer, the tool it runs and the words it writes. <b>Press to jump to it. Hold to approve.</b></p>
+					<div class="cta">
+						<a class="btn primary" href="https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest">Download for Stream Deck</a>
+						<a class="btn" href="https://github.com/gabrielvaz/stream-deck-coding-agents">Source on GitHub</a>
+					</div>
+					<div class="meta"><span>Windows · macOS · WSL</span><span>Stream Deck 7.1+</span><span>Free and open source</span><span>Nothing leaves your computer</span></div>
+				</div>
+				<div>
+					<div class="device deck" data-keys>
+						<img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" /> <img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" />
+						<img alt="" /><img alt="Agents overview key" /><img alt="Allow key" /><img alt="Deny key" /><img alt="Next page key" />
+					</div>
+					<div class="tabs" role="group" aria-label="Theme">
+						<button data-theme="pulse">Pulse</button><button data-theme="glow">Glow</button><button data-theme="clawd">Clawd</button><button data-theme="minimal">Minimal</button>
+					</div>
+					<p id="theme-note"></p>
+				</div>
+			</div>
+		</header>
+
+		<section id="states">
+			<div class="wrap">
+				<h2>Every state at a glance</h2>
+				<p class="sub">Working keys always move, and each state has its own motion and mark, so you can read the deck from across the room without relying on colour. Switch the theme above and these change too.</p>
+				<div class="legend">
+					<figure><img data-state="thinking" data-agent="claude" data-title="game app" alt="" /><figcaption>Thinking<small>working on the next step</small></figcaption></figure>
+					<figure><img data-state="tool" data-agent="claude" data-title="docs-site" alt="" /><figcaption>Tool<small>name and command of the tool</small></figcaption></figure>
+					<figure><img data-state="writing" data-agent="codex" data-title="release notes" alt="" /><figcaption>Writing<small>the latest words, live</small></figcaption></figure>
+					<figure><img data-state="approval" data-agent="claude" data-title="deploy" alt="" /><figcaption>Approval<small>hold the key to allow</small></figcaption></figure>
+					<figure><img data-state="question" data-agent="codex" data-title="mobile-app" alt="" /><figcaption>Question<small>press to answer in its window</small></figcaption></figure>
+					<figure><img data-state="done" data-agent="antigravity" data-title="ideas" alt="" /><figcaption>Done<small>with the last line of the answer</small></figcaption></figure>
+					<figure><img data-state="idle" data-agent="gemini" data-title="menu-layout" alt="" /><figcaption>Idle<small>waiting for your next prompt</small></figcaption></figure>
+					<figure><img data-state="error" data-agent="codex" data-title="api-server" alt="" /><figcaption>Error<small>rate limits, API errors…</small></figcaption></figure>
+					<figure><img data-state="compacting" data-agent="antigravity" data-title="big refactor" alt="" /><figcaption>Compacting<small>summarising its context</small></figcaption></figure>
+					<figure><img data-state="offline" data-agent="claude" data-title="old session" alt="" /><figcaption>Offline<small>stopped reporting</small></figcaption></figure>
+				</div>
+			</div>
+		</section>
+
+		<section id="features">
+			<div class="wrap">
+				<h2>Made for running many agents at once</h2>
+				<p class="sub">The keys sort themselves: sessions waiting for you first, then working ones, then the ones that just finished. They hold still for a moment after you press one, so nothing moves under your finger.</p>
+				<div class="cards">
+					<div class="card"><div class="icon">✔</div><h3>Approve from the deck</h3><p>Claude Code and Codex permission requests show the exact command on the key. Hold it to allow, or use the Allow and Deny keys. The terminal prompt still works, and whichever answers first wins.</p></div>
+					<div class="card"><div class="icon">↗</div><h3>Jump to the window</h3><p>A press brings that session's terminal or editor to the front: the right Windows Terminal tab, VS Code, Terminal.app or iTerm2 tab, or the herdr pane.</p></div>
+					<div class="card"><div class="icon">⚡</div><h3>One click per agent</h3><p>Press Connect in the key settings. The plugin adds its hooks (with a backup) and removes only its own entries when you disconnect. It uses Stream Deck's built-in Node.js, so there's nothing else to install.</p></div>
+					<div class="card"><div class="icon">◎</div><h3>Everywhere you code</h3><p>Windows, macOS, agents inside WSL, and servers you reach over SSH. A remote machine needs only curl and python3.</p></div>
+					<div class="card"><div class="icon">⧉</div><h3>24+ agents through herdr</h3><p>Running agents in herdr? Cursor, Copilot, OpenCode, Droid, Amp, Grok, Kiro, Qwen, Cline, Pi and more show up too, and the keys can answer their prompts.</p></div>
+					<div class="card"><div class="icon">⛨</div><h3>Private by design</h3><p>A local endpoint on 127.0.0.1 with a token only your account can read. No account, no analytics, no network calls.</p></div>
+				</div>
+			</div>
+		</section>
+
+		<section id="agents">
+			<div class="wrap">
+				<h2>Compatibility</h2>
+				<p class="sub">Hooks give the richest view: tool names, live text and approvals. herdr and <code>claude agents</code> add sessions without any setup.</p>
+				<table>
+					<thead><tr><th>Agent</th><th>Live state</th><th>Approve from the deck</th><th>How</th></tr></thead>
+					<tbody>
+						<tr><td><b>Claude Code</b><small>terminal, IDE, Remote Control, background (<code>--bg</code>)</small></td><td class="yes">Yes</td><td class="yes">Yes</td><td>Hooks in <code>~/.claude/settings.json</code>; every session also listed by <code>claude agents</code></td></tr>
+						<tr><td><b>OpenAI Codex CLI</b></td><td class="yes">Yes</td><td class="yes">Yes</td><td>Hooks in <code>~/.codex/hooks.json</code> (trust them once with <code>/hooks</code>)</td></tr>
+						<tr><td><b>Google Antigravity CLI</b></td><td class="yes">Yes</td><td class="no">In its window</td><td>Hooks plus its window-title command, which reports pending confirmations</td></tr>
+						<tr><td><b>Gemini CLI</b></td><td class="yes">Yes</td><td class="no">In its window</td><td>Hooks in <code>~/.gemini/settings.json</code></td></tr>
+						<tr><td><b>Agents in herdr</b><small>Cursor, Copilot, OpenCode, Droid, Amp, Grok, Kiro, Qwen, Cline, Pi, Devin, Kimi…</small></td><td class="part">State</td><td class="yes">Yes, as keys</td><td>Reads <code>herdr agent list</code>; answers with <code>herdr agent send-keys</code></td></tr>
+						<tr><td><b>Any of the above over SSH</b></td><td class="yes">Yes</td><td class="yes">Claude Code, Codex</td><td>An <code>ssh -R</code> tunnel plus a curl-only setup script the plugin generates</td></tr>
+						<tr><td><b>Claude Code on the web</b><small>cloud sessions</small></td><td class="no">No</td><td class="no">No</td><td>They run on Anthropic's servers and can't reach your Stream Deck. Teleport one to your terminal and it shows up.</td></tr>
+						<tr><td><b>Your own tools</b></td><td class="yes">Yes</td><td class="no">No</td><td>POST to the local API: <code>{"id":"deploy","activity":"tool"}</code></td></tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<section id="install">
+			<div class="wrap">
+				<h2>Set up in a minute</h2>
+				<p class="sub">Requires the Stream Deck app 7.1 or later on Windows 10+ or macOS 12+.</p>
+				<div class="steps">
+					<div class="step"><h3>Install</h3><p>Double-click <code>com.gabrielvaz.coding-agents.streamDeckPlugin</code> from the <a href="https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest">latest release</a>, or get it from the Elgato Marketplace.</p></div>
+					<div class="step"><h3>Place keys</h3><p>From the <b>Coding Agents</b> category, drag an <b>Agents Overview</b> key and as many <b>Agent Session</b> keys as you like. Add <b>Allow</b> and <b>Deny</b> if you want them.</p></div>
+					<div class="step"><h3>Connect</h3><p>Select a key, then press <b>Connect</b> next to each agent in its settings. Start a new agent session and watch it light up.</p></div>
+				</div>
+			</div>
+		</section>
+
+		<section id="faq">
+			<div class="wrap">
+				<h2>Questions</h2>
+				<details><summary>Do I need Node.js, a server or a terminal command?</summary><p>No. The plugin runs its own local endpoint and the hooks use the Node.js runtime that ships with Stream Deck.</p></details>
+				<details><summary>What happens if Stream Deck isn't running?</summary><p>The hooks answer neutrally and exit in milliseconds, so your agents never wait. A permission request the deck didn't answer simply shows its normal prompt.</p></details>
+				<details><summary>Can a key approve something by accident?</summary><p>Approving needs a deliberate hold (a green bar fills) or the dedicated Allow key, and the key shows the exact command first. A timeout never decides anything.</p></details>
+				<details><summary>Which Stream Decks are supported?</summary><p>All keypad models: Original, MK.2, XL, Mini, Neo, Stream Deck +, Studio, plus the mobile and virtual Stream Deck. Text gets larger automatically on 72 px keys.</p></details>
+				<details><summary>Does it work with Claude Code in WSL or on a remote server?</summary><p>Yes. WSL distros get their own Connect rows on Windows. For a server, the settings show an <code>ssh -R</code> command and a one-line setup to run there.</p></details>
+				<details><summary>Is my data sent anywhere?</summary><p>No. Everything stays on your computer. See the <a href="https://github.com/gabrielvaz/stream-deck-coding-agents/blob/main/marketplace/PRIVACY.md">privacy policy</a>.</p></details>
+			</div>
+		</section>
+
+		<footer>
+			<div class="wrap">
+				Coding Agents for Stream Deck · MIT licence · <a href="https://github.com/gabrielvaz/stream-deck-coding-agents">GitHub</a> ·
+				<a href="https://github.com/gabrielvaz/stream-deck-coding-agents/issues">Support</a><br />
+				Not affiliated with Anthropic, OpenAI, Google, Elgato, Logitech or herdr. Product names are trademarks of their owners.
+			</div>
+		</footer>
+		<script type="module" src="assets/deck.js"></script>
+	</body>
+</html>

@@ -118,6 +118,46 @@ export const DEMO_SCRIPTS: Script[] = [
 		loop: 100,
 		steps: [{ at: 0, patch: act("idle") }],
 	},
+	{
+		agent: "gemini",
+		id: "demo-research",
+		project: "research",
+		prompt: "Compare three charting libraries",
+		loop: 84,
+		steps: [
+			{ at: 0, patch: act("thinking") },
+			{ at: 18, patch: act("tool", { toolLabel: "google_web_search  chart libraries" }) },
+			{ at: 30, patch: act("thinking") },
+			{ at: 52, patch: act("done", { text: "A table with the trade-offs is in NOTES.md." }) },
+		],
+	},
+	{
+		agent: "codex",
+		id: "demo-mobile",
+		project: "mobile-app",
+		prompt: "Rework the navigation",
+		loop: 72,
+		steps: [
+			{ at: 0, patch: act("tool", { toolLabel: "apply_patch  Navigation.tsx" }) },
+			{ at: 14, patch: act("question", { question: { text: "Use tabs or a drawer?", options: ["Tabs", "Drawer"] } }) },
+			{ at: 34, patch: act("writing", { text: "Tabs it is: four sections, the profile moves to the header." }) },
+			{ at: 46, patch: act("done", { text: "Navigation reworked." }) },
+		],
+	},
+	{
+		agent: "claude",
+		id: "demo-refactor",
+		project: "big refactor",
+		prompt: "Split the billing module",
+		loop: 95,
+		steps: [
+			{ at: 0, patch: act("tool", { toolLabel: "Grep  invoice" }) },
+			{ at: 12, patch: act("compacting") },
+			{ at: 24, patch: act("thinking") },
+			{ at: 40, patch: act("tool", { toolLabel: "Edit  billing/tax.ts" }) },
+			{ at: 60, patch: act("done", { text: "Billing is now three modules." }) },
+		],
+	},
 ];
 
 /** Applies the demo timeline for time `t` (seconds since the demo started). */

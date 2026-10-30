@@ -62,7 +62,7 @@ function deviceHtml(cols, list, size, gap) {
 
 const css = `
 	*{box-sizing:border-box} body{margin:0;background:#0d0e10;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#eef0f3}
-	.device{display:inline-grid;padding:34px;border-radius:44px;background:linear-gradient(160deg,#2a2c31,#16171a);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08)}
+	.device{display:inline-grid;padding:24px;border-radius:44px;background:linear-gradient(160deg,#2a2c31,#16171a);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08)}
 	.key{border-radius:18%;overflow:hidden;background:#000;box-shadow:0 0 0 2px #0a0a0b, 0 4px 10px rgba(0,0,0,.5)}
 	.key img{display:block}
 `;
@@ -135,6 +135,24 @@ await shot(
 		<div style="width:470px;font-size:30px;line-height:1.45;color:#c4c9d2"><b style="color:#fff;font-size:44px">Approve from the deck</b><br><br>Hold a session key for half a second to allow a Claude Code or Codex permission request, or use the Allow and Deny keys.</div>
 	</div>`,
 	"gallery-3-approve.png",
+	{ width: 1920, height: 960 },
+);
+
+// the four themes side by side, each on a 3×3 deck
+const themeSessions = order.slice(0, 8);
+const themeDecks = lib.THEMES.map((theme) => {
+	const keys9 = [
+		...themeSessions.map((s, i) => lib.sessionTile(s, { now: now + i * 97, palette, animate: true, marquee: false, theme: theme.id })),
+		lib.hubTile({ summary: store.summary(), pips: themeSessions, page: 0, pages: 1, listening: true, problem: "", connectedAgents: 3 }, { now, palette, animate: true, theme: theme.id }),
+	];
+	return `<div style="text-align:center"><div style="font-size:34px;font-weight:800;margin-bottom:6px">${theme.name}</div><div style="font-size:18px;color:#9aa1ac;height:52px;width:380px;margin:0 auto 14px">${theme.description}</div>${deviceHtml(3, keys9, 104, 10)}</div>`;
+});
+await shot(
+	`<div style="width:1920px;height:960px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;background:#0b0c0f">
+		<div style="font-size:44px;font-weight:800">Pick a theme</div>
+		<div style="display:flex;gap:40px">${themeDecks.join("")}</div>
+	</div>`,
+	"gallery-4-themes.png",
 	{ width: 1920, height: 960 },
 );
 

@@ -32,6 +32,13 @@ const status = {
 		{ key: "claude@wsl:Ubuntu", agent: "claude", where: "WSL · Ubuntu", detected: true, installed: true, upToDate: true, path: "", note: "" },
 	],
 	message: { ok: true, text: "Hooks added to C:\\Users\\you\\.claude\\settings.json" },
+	herdr: { found: true, running: true, agents: 3 },
+	claudeList: { found: true, running: true },
+	remote: {
+		tunnel: "ssh -R 47821:127.0.0.1:47821 <your-server>",
+		setup: 'curl -fsS "http://127.0.0.1:47821/remote/setup.sh?k=…" | sh',
+		remove: 'curl -fsS "http://127.0.0.1:47821/remote/setup.sh?k=…&remove=1" | sh',
+	},
 };
 
 const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });
@@ -47,7 +54,7 @@ wss.on("connection", (ws) => {
 
 const chromium = await loadChromium();
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 380, height: 1500 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({ viewport: { width: 380, height: 2200 }, deviceScaleFactor: 2 });
 await page.goto(pathToFileURL(join(root, "com.gabrielvaz.coding-agents.sdPlugin", "ui", "setup.html")).href);
 const info = { application: { language: "en", platform: "windows", version: "7.1.0" }, colors: {}, devicePixelRatio: 2, devices: [], plugin: { uuid: "com.gabrielvaz.coding-agents", version: "1.0.0.0" } };
 const actionInfo = { action: "com.gabrielvaz.coding-agents.session", context: "ctx", device: "dev", payload: { settings: {}, coordinates: { row: 0, column: 0 } } };
