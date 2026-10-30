@@ -1,5 +1,13 @@
 node_modules/
+dist/
 .build/
 *.log
 .DS_Store
 TASKS.md
+
+# Stream Deck build output
+*.sdPlugin/bin/plugin.js
+*.sdPlugin/bin/plugin.js.map
+*.sdPlugin/bin/package.json
+*.sdPlugin/bin/hook.mjs
+*.sdPlugin/logs

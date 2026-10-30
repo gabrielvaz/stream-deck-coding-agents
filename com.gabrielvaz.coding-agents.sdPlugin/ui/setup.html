@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Coding Agents</title>
+		<script src="sdpi-components.js"></script>
+		<style>
+			.status { display: flex; align-items: center; gap: 6px; font-size: 9pt; line-height: 1.4; }
+			.dot { width: 8px; height: 8px; border-radius: 50%; background: #777; flex: none; }
+			.dot.ok { background: #2fd27a; }
+			.dot.bad { background: #ff4b3e; }
+			.agents { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+			.agent { display: flex; align-items: center; gap: 8px; }
+			.agent .name { flex: 1; min-width: 0; }
+			.agent .name b { display: block; font-weight: 600; }
+			.agent .name small { display: block; opacity: 0.65; font-size: 8pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+			.pill { font-size: 8pt; padding: 1px 6px; border-radius: 8px; background: #3a3a3a; white-space: nowrap; }
+			.pill.on { background: #1f6b44; color: #d8ffe9; }
+			.pill.warn { background: #6b4a1f; color: #ffe9cc; }
+			.agent button { flex: none; min-width: 84px; }
+			.note { font-size: 8pt; opacity: 0.75; line-height: 1.45; margin: 2px 0 0; }
+			.msg { font-size: 8.5pt; line-height: 1.4; white-space: pre-wrap; margin: 4px 0 0; }
+			.msg.ok { color: #7ff0b2; }
+			.msg.bad { color: #ff8a80; }
+			details summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+			.swatch-row { display: flex; gap: 6px; align-items: center; }
+			h4 { margin: 14px 0 4px; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+		</style>
+	</head>
+	<body>
+		<sdpi-item label="Status">
+			<div class="status"><span id="dot" class="dot"></span><span id="status">Connecting to the plugin…</span></div>
+		</sdpi-item>
+
+		<div id="session-settings" hidden>
+			<h4>This key</h4>
+			<sdpi-item label="Session">
+				<sdpi-select setting="slot" default="auto">
+					<option value="auto">Automatic (by key position)</option>
+					<option value="1">1st session</option>
+					<option value="2">2nd session</option>
+					<option value="3">3rd session</option>
+					<option value="4">4th session</option>
+					<option value="5">5th session</option>
+					<option value="6">6th session</option>
+					<option value="7">7th session</option>
+					<option value="8">8th session</option>
+					<option value="9">9th session</option>
+					<option value="10">10th session</option>
+					<option value="11">11th session</option>
+					<option value="12">12th session</option>
+				</sdpi-select>
+			</sdpi-item>
+			<sdpi-item label="Agent">
+				<sdpi-select setting="agent" default="any">
+					<option value="any">Any agent</option>
+					<option value="claude">Claude Code only</option>
+					<option value="codex">Codex only</option>
+					<option value="antigravity">Antigravity only</option>
+					<option value="gemini">Gemini CLI only</option>
+				</sdpi-select>
+			</sdpi-item>
+			<p class="note">Order: waiting for you, working, just finished, done, idle. Keys keep their place for a moment after you press one.</p>
+		</div>
+
+		<h4>Agents</h4>
+		<sdpi-item label="Connect">
+			<div class="agents" id="agents"><span class="note">Loading…</span></div>
+		</sdpi-item>
+		<sdpi-item>
+			<p class="note" id="agents-note">
+				Connecting adds hooks to the agent's settings file (a backup is kept next to it). Start a new agent session afterwards. Codex asks you to review new hooks once: open Codex and run
+				<b>/hooks</b>.
+			</p>
+		</sdpi-item>
+		<sdpi-item><p class="msg" id="msg"></p></sdpi-item>
+
+		<h4>Behavior</h4>
+		<sdpi-item label="Hold to allow">
+			<sdpi-checkbox setting="holdToApprove" global default="true" label="Hold a session key 0.6 s to allow its request"></sdpi-checkbox>
+		</sdpi-item>
+		<sdpi-item label="Wait for a key">
+			<sdpi-select setting="approvalWait" global default="25">
+				<option value="0">Off: always ask in the terminal</option>
+				<option value="10">10 seconds</option>
+				<option value="25">25 seconds</option>
+				<option value="60">1 minute</option>
+				<option value="120">2 minutes</option>
+			</sdpi-select>
+		</sdpi-item>
+		<sdpi-item>
+			<p class="note">How long a Claude Code or Codex permission request waits for Allow / Deny on the deck before the agent asks in the terminal. A timeout never decides anything. Pressing the session key opens the window and hands the question back to the terminal right away.</p>
+		</sdpi-item>
+		<sdpi-item label="Done → Idle">
+			<sdpi-select setting="doneToIdle" global default="120">
+				<option value="30">after 30 s</option>
+				<option value="120">after 2 min</option>
+				<option value="600">after 10 min</option>
+				<option value="0">never</option>
+			</sdpi-select>
+		</sdpi-item>
+		<sdpi-item label="Hide idle">
+			<sdpi-select setting="hideIdleAfter" global default="120">
+				<option value="30">after 30 min</option>
+				<option value="120">after 2 h</option>
+				<option value="480">after 8 h</option>
+				<option value="0">never</option>
+			</sdpi-select>
+		</sdpi-item>
+		<sdpi-item label="Offline">
+			<sdpi-checkbox setting="showOffline" global label="Keep sessions that stopped reporting"></sdpi-checkbox>
+		</sdpi-item>
+		<sdpi-item label="Live text">
+			<sdpi-checkbox setting="liveText" global default="true" label="Show Claude Code's words while it writes"></sdpi-checkbox>
+		</sdpi-item>
+
+		<h4>Look</h4>
+		<sdpi-item label="Animation">
+			<sdpi-select setting="animation" global default="smooth">
+				<option value="smooth">Smooth</option>
+				<option value="low">Low (saves CPU)</option>
+				<option value="off">Off</option>
+			</sdpi-select>
+		</sdpi-item>
+		<sdpi-item label="Title">
+			<sdpi-select setting="titleMode" global default="both">
+				<option value="both">Project – topic</option>
+				<option value="topic">Topic</option>
+				<option value="project">Project folder</option>
+			</sdpi-select>
+		</sdpi-item>
+		<sdpi-item label="Text size">
+			<sdpi-select setting="textSize" global default="auto">
+				<option value="auto">Automatic (large on 72 px keys)</option>
+				<option value="normal">Normal: up to 4 lines</option>
+				<option value="large">Large: 2 lines</option>
+			</sdpi-select>
+		</sdpi-item>
+		<sdpi-item label="Claude Code">
+			<div class="swatch-row"><sdpi-color setting="claudeColor" global default="#FFB238"></sdpi-color><sdpi-color setting="claudeAlert" global default="#FF5F2E"></sdpi-color></div>
+		</sdpi-item>
+		<sdpi-item label="Codex">
+			<div class="swatch-row"><sdpi-color setting="codexColor" global default="#3F8CFF"></sdpi-color><sdpi-color setting="codexAlert" global default="#B36BFF"></sdpi-color></div>
+		</sdpi-item>
+		<sdpi-item label="Antigravity">
+			<div class="swatch-row"><sdpi-color setting="antigravityColor" global default="#1FD8A4"></sdpi-color><sdpi-color setting="antigravityAlert" global default="#FF4F9A"></sdpi-color></div>
+		</sdpi-item>
+		<sdpi-item label="Gemini CLI">
+			<div class="swatch-row"><sdpi-color setting="geminiColor" global default="#8C7CFF"></sdpi-color><sdpi-color setting="geminiAlert" global default="#FF5CA8"></sdpi-color></div>
+		</sdpi-item>
+		<sdpi-item><p class="note">Left: working colour. Right: waiting-for-you colour. Errors are always red.</p></sdpi-item>
+
+		<details>
+			<summary>Advanced</summary>
+			<sdpi-item label="Demo">
+				<sdpi-checkbox setting="demo" global label="Show demo sessions (no agent needed)"></sdpi-checkbox>
+			</sdpi-item>
+			<sdpi-item label="Port">
+				<sdpi-textfield setting="port" global placeholder="47821" pattern="[0-9]{4,5}"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item><p class="note">Local port for the hooks (127.0.0.1 only). If it is taken the next free one is used. Changes apply when Stream Deck restarts.</p></sdpi-item>
+			<sdpi-item label="Open Claude">
+				<sdpi-textfield setting="claudeOpen" global placeholder="default: bring its window forward"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item label="Open Codex">
+				<sdpi-textfield setting="codexOpen" global placeholder="default: bring its window forward"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item label="Open Antigravity">
+				<sdpi-textfield setting="antigravityOpen" global placeholder="default: bring its window forward"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item label="Open Gemini">
+				<sdpi-textfield setting="geminiOpen" global placeholder="default: bring its window forward"></sdpi-textfield>
+			</sdpi-item>
+			<sdpi-item>
+				<p class="note">Optional command run when you press a session key, for example <code>code "{cwd}"</code>. Placeholders: {cwd} {project} {title} {pid} {sessionId} {agent}.</p>
+			</sdpi-item>
+			<sdpi-item label="Hooks folder"><p class="note" id="home">–</p></sdpi-item>
+		</details>
+
+		<script src="setup.js"></script>
+	</body>
+</html>

@@ -1,0 +1,125 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"UUID": "com.gabrielvaz.coding-agents",
+	"Name": "Coding Agents",
+	"Version": "1.0.0.0",
+	"Author": "Gabriel Vaz",
+	"Description": "Live keys for your AI coding agents: Claude Code, Codex, Antigravity CLI and Gemini CLI. Each key shows one session with its state, timer, current tool or streamed text and a breathing light. Press to open the session's window, hold to approve a permission request.",
+	"URL": "https://github.com/gabrielvaz/stream-deck-coding-agents",
+	"SupportURL": "https://github.com/gabrielvaz/stream-deck-coding-agents/issues",
+	"Icon": "imgs/plugin/marketplace",
+	"Category": "Coding Agents",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"PropertyInspectorPath": "ui/setup.html",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		},
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "24",
+		"Debug": "enabled"
+	},
+	"Actions": [
+		{
+			"Name": "Agent Session",
+			"UUID": "com.gabrielvaz.coding-agents.session",
+			"Icon": "imgs/actions/session",
+			"Tooltip": "One live coding-agent session per key. Press: open its window. Hold: approve a pending permission request.",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"SupportedInMultiActions": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/session-key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Agents Overview",
+			"UUID": "com.gabrielvaz.coding-agents.hub",
+			"Icon": "imgs/actions/hub",
+			"Tooltip": "How many agents are working, waiting for you and done. Press: open the first session waiting for you. Hold: next page.",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"SupportedInMultiActions": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/hub-key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Allow",
+			"UUID": "com.gabrielvaz.coding-agents.allow",
+			"Icon": "imgs/actions/allow",
+			"Tooltip": "Allow the oldest pending permission request (Claude Code, Codex).",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"SupportedInMultiActions": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/allow-key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Deny",
+			"UUID": "com.gabrielvaz.coding-agents.deny",
+			"Icon": "imgs/actions/deny",
+			"Tooltip": "Deny the oldest pending permission request (Claude Code, Codex).",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"SupportedInMultiActions": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/deny-key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Next Page",
+			"UUID": "com.gabrielvaz.coding-agents.page",
+			"Icon": "imgs/actions/page",
+			"Tooltip": "Show the next page of sessions on the session keys. Hold: back to the first page.",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"SupportedInMultiActions": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/page-key",
+					"ShowTitle": false
+				}
+			]
+		}
+	]
+}
