@@ -14,6 +14,7 @@
  */
 import { type Activity, type AgentId, type AgentInfo, AGENTS, LABELS, WAITING, WORKING } from "../core/agents";
 import type { Session, Summary } from "../core/store";
+import { plainText } from "../core/util";
 
 
 export const SIZE = 144;
@@ -265,7 +266,7 @@ function detailFor(session: Session, m: Metrics): { lines: string[]; color: stri
 		case "tool":
 			return { lines: wrapMono(session.toolLabel, m.chars, n(2)), color };
 		case "writing":
-			return { lines: wrapMono(session.text, m.chars, n(4), true), color: TEXT };
+			return { lines: wrapMono(plainText(session.text), m.chars, n(4), true), color: TEXT };
 		case "approval": {
 			const text = session.approval ? `${session.approval.tool}  ${session.approval.summary}`.trim() : session.detail || session.toolLabel;
 			return { lines: wrapMono(text, m.chars, n(2)), color };
@@ -273,7 +274,7 @@ function detailFor(session: Session, m: Metrics): { lines: string[]; color: stri
 		case "question":
 			return { lines: wrapMono(session.question?.text || session.detail || "needs your input", m.chars, n(3)), color };
 		case "done":
-			return { lines: wrapMono(lastWords(session.text), m.chars, 1), color: "#C3C7CE" };
+			return { lines: wrapMono(lastWords(plainText(session.text)), m.chars, 1), color: "#C3C7CE" };
 		case "error":
 			return { lines: wrapMono(session.detail || "error", m.chars, n(2)), color: "#FFB3AE" };
 		case "starting":

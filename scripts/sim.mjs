@@ -3,7 +3,7 @@
  * Stream Deck does, speaks the SDK WebSocket protocol, places keys on a virtual device and
  * records every image the plugin draws. Used by the tests and `npm run simulate`.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { join, resolve } from "node:path";
 import { WebSocketServer } from "ws";
@@ -13,8 +13,10 @@ export const PLUGIN_DIR = join(ROOT, "com.gabrielvaz.coding-agents.sdPlugin");
 export const UUID = "com.gabrielvaz.coding-agents";
 
 export class StreamDeckSim {
-	constructor({ env = {}, globalSettings = {}, deviceType = 2, columns = 5, rows = 3, platform = process.platform === "darwin" ? "mac" : "windows" } = {}) {
+	constructor({ env = {}, globalSettings = {}, deviceType = 2, columns = 5, rows = 3, platform = process.platform === "darwin" ? "mac" : "windows", node = process.execPath, pluginMain = join(PLUGIN_DIR, "bin", "plugin.js") } = {}) {
 		this.env = env;
+		this.node = node;
+		this.pluginMain = pluginMain;
 		this.globalSettings = globalSettings;
 		this.device = { id: "SIMDEVICE", name: "Simulated Stream Deck", size: { columns, rows }, type: deviceType };
 		this.platform = platform;
@@ -30,6 +32,7 @@ export class StreamDeckSim {
 		this.wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });
 		await once(this.wss, "listening");
 		const port = this.wss.address().port;
+		this.port = port;
 		const info = {
 			application: { font: "", language: "en", platform: this.platform, platformVersion: "14.0", version: "7.1.0.21000" },
 			colors: {},
@@ -44,7 +47,7 @@ export class StreamDeckSim {
 				resolveConn();
 			});
 		});
-		this.child = spawn(process.execPath, [join(PLUGIN_DIR, "bin", "plugin.js"), "-port", String(port), "-pluginUUID", UUID, "-registerEvent", "registerPlugin", "-info", JSON.stringify(info)], {
+		this.child = spawn(this.node, [this.pluginMain, "-port", String(port), "-pluginUUID", UUID, "-registerEvent", "registerPlugin", "-info", JSON.stringify(info)], {
 			cwd: PLUGIN_DIR,
 			env: { ...process.env, ...this.env },
 			stdio: ["ignore", "pipe", "pipe"],
@@ -159,6 +162,10 @@ export class StreamDeckSim {
 	}
 
 	async stop() {
+		if (this.node.endsWith(".exe") && this.port) {
+			// a Windows node.exe started through WSL interop outlives the interop process: stop it by its port
+			spawnSync("powershell.exe", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*-port ${this.port} *' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`]);
+		}
 		this.child?.kill();
 		if (this.child && this.child.exitCode === null) await Promise.race([once(this.child, "exit"), new Promise((r) => setTimeout(r, 2000))]);
 		this.wss?.close();

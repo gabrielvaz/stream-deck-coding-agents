@@ -81,7 +81,7 @@
 		</sdpi-item>
 		<sdpi-item label="Wait for a key">
 			<sdpi-select setting="approvalWait" global default="25">
-				<option value="0">Off: always ask in the terminal</option>
+				<option value="0">Off: answer in the terminal only</option>
 				<option value="10">10 seconds</option>
 				<option value="25">25 seconds</option>
 				<option value="60">1 minute</option>
@@ -89,7 +89,7 @@
 			</sdpi-select>
 		</sdpi-item>
 		<sdpi-item>
-			<p class="note">How long a Claude Code or Codex permission request waits for Allow / Deny on the deck before the agent asks in the terminal. A timeout never decides anything. Pressing the session key opens the window and hands the question back to the terminal right away.</p>
+			<p class="note">Claude Code shows its own prompt at the same time, so you can answer on the deck or in the terminal, whichever comes first. Codex asks in the terminal only after this wait. A timeout never decides anything, and pressing the session key opens the window and hands the question to the terminal at once.</p>
 		</sdpi-item>
 		<sdpi-item label="Done → Idle">
 			<sdpi-select setting="doneToIdle" global default="120">

@@ -69,7 +69,10 @@ export class Deck {
 		this.focuser = new WindowFocuser((m) => log.warn(m));
 		this.server = new HookServer(this.store, this.focuser, {
 			token: this.token,
-			approvalWaitSeconds: () => this.settings.approvalWait,
+			// Claude Code shows its own prompt while the hook waits (first answer wins), so the deck can
+			// keep the request open until just before the hook's 300 s timeout. Codex waits for hooks
+			// before prompting, so it gets the configurable, shorter wait.
+			approvalWaitSeconds: (agent) => (this.settings.approvalWait === 0 ? 0 : agent === "claude" ? 290 : this.settings.approvalWait),
 			deckVisible: () => [...this.keys.values()].some((k) => k.kind === "session" || k.kind === "allow" || k.kind === "hub"),
 			log: (m) => log.info(m),
 		});
@@ -94,6 +97,7 @@ export class Deck {
 		this.refreshStatus();
 		this.selfHeal();
 		this.restartLoop();
+		this.focuser.warm();
 	}
 
 	async stop(): Promise<void> {

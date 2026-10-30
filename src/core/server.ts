@@ -18,8 +18,8 @@ import { clip } from "./util";
 
 export type ServerOptions = {
 	token: string;
-	/** Seconds a permission request waits for a key before the agent shows its own prompt. */
-	approvalWaitSeconds: () => number;
+	/** Seconds a permission request waits for a key (per agent). */
+	approvalWaitSeconds: (agent: AgentId) => number;
 	/** True while at least one of our keys is on a Stream Deck: only then is holding worth it. */
 	deckVisible: () => boolean;
 	log: (msg: string) => void;
@@ -27,6 +27,8 @@ export type ServerOptions = {
 };
 
 const CHAIN_EVENTS = new Set(["SessionStart", "UserPromptSubmit", "PreInvocation", "BeforeAgent", "Title"]);
+/** Events that mean a pending permission request was settled elsewhere (or never will be). */
+const SETTLING_EVENTS = new Set(["PostToolUse", "PostToolUseFailure", "PermissionDenied", "Stop", "StopFailure", "UserPromptSubmit", "Interrupt", "SessionEnd", "AfterTool", "AfterAgent"]);
 const MAX_BODY = 512 * 1024;
 
 export class HookServer {
@@ -132,7 +134,10 @@ export class HookServer {
 
 		const existing = this.store.get(uid);
 		let patch: SessionPatch = mapped.patch;
-		if (mapped.when && !mapped.when(existing)) {
+		// async hooks can arrive late: a PreToolUse delivered after its own PermissionRequest must not
+		// cancel the request that is waiting for a key
+		const parked = !!existing && this.store.hasPending(uid) && !mapped.awaitDecision && !SETTLING_EVENTS.has(event);
+		if (parked || (mapped.when && !mapped.when(existing))) {
 			const { cwd, project, model, title, titleIfEmpty } = patch;
 			patch = { cwd, project, model, title, titleIfEmpty };
 		}
@@ -149,7 +154,7 @@ export class HookServer {
 
 		const session = this.store.upsert(agent, mapped.sessionId, patch);
 		if (mapped.awaitDecision) {
-			const wait = this.options.deckVisible() ? this.options.approvalWaitSeconds() : 0;
+			const wait = this.options.deckVisible() ? this.options.approvalWaitSeconds(agent) : 0;
 			const decision = await this.store.waitForDecision(uid, wait * 1000);
 			if (decision) this.options.log(`${agent} ${session.title}: ${decision.behavior} from Stream Deck`);
 			return reply(res, mapped.reply ? mapped.reply(decision) : {});

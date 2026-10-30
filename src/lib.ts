@@ -11,3 +11,4 @@ export * from "./core/server";
 export * from "./core/focus";
 export * from "./settings";
 export * from "./deck";
+export * from "./core/powershell";

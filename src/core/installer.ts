@@ -62,21 +62,9 @@ export function prepareRuntime(rt: Runtime, hookSource: string, endpoint: { port
 	mkdirSync(rt.home, { recursive: true });
 	writeIfChanged(rt.script, readFileSync(hookSource, "utf8"));
 	if (IS_WIN) {
-		writeIfChanged(
-			rt.launcher,
-			[
-				"@echo off",
-				"rem Coding Agents for Stream Deck: runs the hook with Stream Deck's Node.js runtime.",
-				`if not exist "${rt.node}" (`,
-				'  if /I "%~1 %~2"=="antigravity PreToolUse" echo {"decision":"allow"}',
-				'  if /I not "%~1"=="claude" if /I not "%~2"=="Title" echo {}',
-				"  exit /b 0",
-				")",
-				`"${rt.node}" "%~dp0hook.mjs" %*`,
-				"exit /b 0",
-				"",
-			].join("\r\n"),
-		);
+		writeIfChanged(rt.launcher, windowsLauncher(rt));
+		// keep the %ProgramData% copy (see cmdSafeLauncher) pointing at the current runtime
+		if (existsSync(programDataShim())) writeIfChanged(programDataShim(), windowsLauncher(rt));
 	} else {
 		writeIfChanged(
 			rt.launcher,
@@ -101,6 +89,43 @@ export function prepareRuntime(rt: Runtime, hookSource: string, endpoint: { port
 	writeIfChanged(join(rt.home, "endpoint.json"), `${JSON.stringify({ host: "127.0.0.1", port: endpoint.port, token: endpoint.token }, null, 2)}\n`, 0o600);
 }
 
+function windowsLauncher(rt: Runtime): string {
+	return [
+		"@echo off",
+		"rem Coding Agents for Stream Deck: runs the hook with Stream Deck's Node.js runtime.",
+		`if not exist "${rt.node}" (`,
+		'  if /I "%~1 %~2"=="antigravity PreToolUse" echo {"decision":"allow"}',
+		'  if /I not "%~1"=="claude" if /I not "%~2"=="Title" echo {}',
+		"  exit /b 0",
+		")",
+		`"${rt.node}" "${rt.script}" %*`,
+		"exit /b 0",
+		"",
+	].join("\r\n");
+}
+
+/**
+ * Antigravity runs hook commands through `cmd /c`, which cannot take a quoted program path from a
+ * Go-escaped command line. When the user folder has spaces, use its 8.3 short name or, if 8.3
+ * names are disabled, a copy of the launcher under %ProgramData% (no spaces, writable only by
+ * its creator).
+ */
+export function cmdSafeLauncher(rt: Runtime): string {
+	if (!IS_WIN || !/\s/.test(rt.launcher)) return rt.launcher;
+	const short = shortWindowsPath(rt.launcher);
+	if (short) return short;
+	const shim = programDataShim();
+	if (/\s/.test(shim)) return `"${rt.launcher}"`;
+	writeIfChanged(shim, windowsLauncher(rt));
+	return shim;
+}
+
+function programDataShim(): string {
+	const base = process.env.ProgramData || "C:\\ProgramData";
+	const user = (process.env.USERNAME || "user").replace(/[^\w.-]+/g, "_");
+	return join(base, "coding-agents-deck", user, "hook.cmd");
+}
+
 function writeIfChanged(path: string, content: string, mode?: number): void {
 	if (existsSync(path) && readFileSync(path, "utf8") === content) return;
 	mkdirSync(dirname(path), { recursive: true });
@@ -122,16 +147,15 @@ export function psCall(path: string): string {
 	return `& '${path.replace(/'/g, "''")}'`;
 }
 
-/** A path that works unquoted in cmd.exe *and* PowerShell: the 8.3 short name if it has spaces. */
-export function bareWindowsPath(path: string): string {
-	if (!/\s/.test(path)) return path;
+/** The 8.3 short name of `path`, when the volume still creates them. */
+function shortWindowsPath(path: string): string {
 	try {
 		const short = execFileSync("cmd.exe", ["/d", "/c", `for %A in ("${path}") do @echo %~sA`], { encoding: "utf8", windowsHide: true }).trim();
-		if (short && !/\s/.test(short)) return short;
+		if (short && !/\s/.test(short) && short.includes("~")) return short;
 	} catch {
-		// fall through
+		// 8.3 names unavailable
 	}
-	return `"${path}"`;
+	return "";
 }
 
 /** Launcher command for CLIs that run hooks through PowerShell on Windows and sh/zsh elsewhere. */
@@ -141,7 +165,7 @@ function shellCommand(rt: Runtime, ...args: string[]): string {
 
 /** Launcher command for CLIs that use `cmd /c` on Windows (Antigravity). */
 function cmdCommand(rt: Runtime, ...args: string[]): string {
-	return IS_WIN ? `${bareWindowsPath(rt.launcher)} ${args.join(" ")}` : `${shQuote(rt.launcher)} ${args.join(" ")}`;
+	return IS_WIN ? `${cmdSafeLauncher(rt)} ${args.join(" ")}` : `${shQuote(rt.launcher)} ${args.join(" ")}`;
 }
 
 // ------------------------------------------------------------------------------------------------ JSON files

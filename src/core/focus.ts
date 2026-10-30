@@ -35,6 +35,11 @@ export class WindowFocuser {
 		this.ps?.dispose();
 	}
 
+	/** Windows: start the PowerShell helper early so the first key press is instant. */
+	warm(): void {
+		if (IS_WIN) void this.powershell().request({ op: "ping" }, 20_000);
+	}
+
 	private powershell(): PowerShellHelper {
 		this.ps ??= new PowerShellHelper(this.log);
 		return this.ps;
