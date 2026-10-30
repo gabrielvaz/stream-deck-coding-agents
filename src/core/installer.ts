@@ -9,12 +9,15 @@
  * users do not need Node.js installed. Shell-based CLIs (Codex, Antigravity, Gemini) call a small
  * launcher (`hook` / `hook.cmd`) whose path never changes: Codex asks the user to trust each hook
  * command once, and a stable command keeps that trust across Stream Deck and plugin updates.
+ *
+ * On Windows, agents running inside WSL are supported too: their config files are reached through
+ * \\wsl.localhost, and a launcher inside the distro calls Stream Deck's node.exe through interop.
  */
 import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { HookAgentId } from "./agents";
+import { HOOK_AGENTS, type HookAgentId } from "./agents";
 
 export const MARK = ".coding-agents-deck";
 const IS_WIN = process.platform === "win32";
@@ -30,8 +33,24 @@ export type Runtime = {
 	launcher: string;
 };
 
+/** A WSL distribution seen from Windows. */
+export type WslDistro = {
+	name: string;
+	/** $HOME inside the distro, e.g. /home/joao */
+	home: string;
+	/** The same folder from Windows, e.g. \\wsl.localhost\Ubuntu\home\joao */
+	unc: string;
+	/** Stream Deck's node.exe as seen from inside the distro, e.g. /mnt/c/Program Files/…/node.exe */
+	node: string;
+};
+
+/** Where an agent lives: on this computer, or inside a WSL distro. */
+export type Target = { key: string; agent: HookAgentId; wsl?: WslDistro };
+
 export type AgentStatus = {
+	key: string;
 	agent: HookAgentId;
+	where: string;
 	detected: boolean;
 	installed: boolean;
 	upToDate: boolean;
@@ -44,12 +63,15 @@ export function deckHome(): string {
 }
 
 export function runtimeFor(node = process.execPath, home = deckHome()): Runtime {
-	return {
-		home,
-		node,
-		script: join(home, "hook.mjs"),
-		launcher: join(home, IS_WIN ? "hook.cmd" : "hook"),
-	};
+	return { home, node, script: join(home, "hook.mjs"), launcher: join(home, IS_WIN ? "hook.cmd" : "hook") };
+}
+
+export function nativeTargets(): Target[] {
+	return HOOK_AGENTS.map((agent) => ({ key: agent, agent }));
+}
+
+export function wslTargets(distros: WslDistro[]): Target[] {
+	return distros.flatMap((wsl) => HOOK_AGENTS.map((agent) => ({ key: `${agent}@wsl:${wsl.name}`, agent, wsl })));
 }
 
 // ------------------------------------------------------------------------------------------------ runtime files
@@ -66,27 +88,28 @@ export function prepareRuntime(rt: Runtime, hookSource: string, endpoint: { port
 		// keep the %ProgramData% copy (see cmdSafeLauncher) pointing at the current runtime
 		if (existsSync(programDataShim())) writeIfChanged(programDataShim(), windowsLauncher(rt));
 	} else {
-		writeIfChanged(
-			rt.launcher,
-			[
-				"#!/bin/sh",
-				"# Coding Agents for Stream Deck: runs the hook with Stream Deck's Node.js runtime.",
-				`NODE=${shQuote(rt.node)}`,
-				'if [ ! -x "$NODE" ]; then',
-				'  case "$1 $2" in',
-				"    \"antigravity PreToolUse\") echo '{\"decision\":\"allow\"}' ;;",
-				'    "antigravity Title"|claude*) ;;',
-				"    *) echo '{}' ;;",
-				"  esac",
-				"  exit 0",
-				"fi",
-				`exec "$NODE" ${shQuote(rt.script)} "$@"`,
-				"",
-			].join("\n"),
-		);
+		writeIfChanged(rt.launcher, posixLauncher(rt.node, rt.script));
 		chmodSync(rt.launcher, 0o755);
 	}
 	writeIfChanged(join(rt.home, "endpoint.json"), `${JSON.stringify({ host: "127.0.0.1", port: endpoint.port, token: endpoint.token }, null, 2)}\n`, 0o600);
+}
+
+function posixLauncher(node: string, script: string, comment = "runs the hook with Stream Deck's Node.js runtime."): string {
+	return [
+		"#!/bin/sh",
+		`# Coding Agents for Stream Deck: ${comment}`,
+		`NODE=${shQuote(node)}`,
+		'if [ ! -x "$NODE" ]; then',
+		'  case "$1 $2" in',
+		"    \"antigravity PreToolUse\") echo '{\"decision\":\"allow\"}' ;;",
+		'    "antigravity Title"|claude*) ;;',
+		"    *) echo '{}' ;;",
+		"  esac",
+		"  exit 0",
+		"fi",
+		`exec "$NODE" ${shQuote(script)} "$@"`,
+		"",
+	].join("\n");
 }
 
 function windowsLauncher(rt: Runtime): string {
@@ -126,14 +149,66 @@ function programDataShim(): string {
 	return join(base, "coding-agents-deck", user, "hook.cmd");
 }
 
+/** The 8.3 short name of `path`, when the volume still creates them. */
+function shortWindowsPath(path: string): string {
+	try {
+		const short = execFileSync("cmd.exe", ["/d", "/c", `for %A in ("${path}") do @echo %~sA`], { encoding: "utf8", windowsHide: true }).trim();
+		if (short && !/\s/.test(short) && short.includes("~")) return short;
+	} catch {
+		// 8.3 names unavailable
+	}
+	return "";
+}
+
 function writeIfChanged(path: string, content: string, mode?: number): void {
 	if (existsSync(path) && readFileSync(path, "utf8") === content) return;
 	mkdirSync(dirname(path), { recursive: true });
 	const tmp = `${path}.tmp-${process.pid}`;
 	writeFileSync(tmp, content, mode ? { mode } : undefined);
 	renameSync(tmp, path);
-	if (mode) chmodSync(path, mode);
+	if (mode && !path.startsWith("\\\\")) chmodSync(path, mode);
 }
+
+// ------------------------------------------------------------------------------------------------ WSL
+
+/** Running WSL distributions with their home folder (Windows only; never boots a stopped distro). */
+export function listWslDistros(node: string): WslDistro[] {
+	if (!IS_WIN) return [];
+	let names: string[] = [];
+	try {
+		const raw = execFileSync("wsl.exe", ["--list", "--running", "--quiet"], { windowsHide: true, timeout: 5000 });
+		names = Buffer.from(raw)
+			.toString(raw.includes(0) ? "utf16le" : "utf8")
+			.split(/\r?\n/)
+			.map((s) => s.replace(/\0/g, "").trim())
+			.filter((s) => s && !/^docker-desktop/i.test(s));
+	} catch {
+		return [];
+	}
+	const out: WslDistro[] = [];
+	for (const name of names) {
+		try {
+			const home = process.env.CODING_AGENTS_DECK_WSL_HOME || wslExec(name, ["sh", "-c", 'printf %s "$HOME"']);
+			const nodeInside = wslExec(name, ["wslpath", "-u", node]);
+			if (!home.startsWith("/") || !nodeInside.startsWith("/")) continue;
+			out.push({ name, home, unc: `\\\\wsl.localhost\\${name}${home.replace(/\//g, "\\")}`, node: nodeInside });
+		} catch {
+			// distro without sh/wslpath: skip it
+		}
+	}
+	return out;
+}
+
+function wslExec(distro: string, args: string[]): string {
+	return execFileSync("wsl.exe", ["-d", distro, "-e", ...args], { encoding: "utf8", windowsHide: true, timeout: 8000 }).trim();
+}
+
+/** Writes the launcher inside the distro: it forwards to Stream Deck's node.exe through interop. */
+export function prepareWsl(rt: Runtime, wsl: WslDistro): void {
+	writeIfChanged(`${wsl.unc}\\${MARK}\\hook`, posixLauncher(wsl.node, rt.script, "forwards the hook to Stream Deck on Windows."));
+}
+
+const wslLauncher = (wsl: WslDistro) => `${wsl.home}/${MARK}/hook`;
 
 // ------------------------------------------------------------------------------------------------ quoting
 
@@ -147,24 +222,15 @@ export function psCall(path: string): string {
 	return `& '${path.replace(/'/g, "''")}'`;
 }
 
-/** The 8.3 short name of `path`, when the volume still creates them. */
-function shortWindowsPath(path: string): string {
-	try {
-		const short = execFileSync("cmd.exe", ["/d", "/c", `for %A in ("${path}") do @echo %~sA`], { encoding: "utf8", windowsHide: true }).trim();
-		if (short && !/\s/.test(short) && short.includes("~")) return short;
-	} catch {
-		// 8.3 names unavailable
-	}
-	return "";
-}
-
 /** Launcher command for CLIs that run hooks through PowerShell on Windows and sh/zsh elsewhere. */
-function shellCommand(rt: Runtime, ...args: string[]): string {
+function shellCommand(rt: Runtime, t: Target, ...args: string[]): string {
+	if (t.wsl) return `sh ${shQuote(wslLauncher(t.wsl))} ${args.join(" ")}`;
 	return IS_WIN ? `${psCall(rt.launcher)} ${args.join(" ")}` : `${shQuote(rt.launcher)} ${args.join(" ")}`;
 }
 
 /** Launcher command for CLIs that use `cmd /c` on Windows (Antigravity). */
-function cmdCommand(rt: Runtime, ...args: string[]): string {
+function cmdCommand(rt: Runtime, t: Target, ...args: string[]): string {
+	if (t.wsl) return `sh ${shQuote(wslLauncher(t.wsl))} ${args.join(" ")}`;
 	return IS_WIN ? `${cmdSafeLauncher(rt)} ${args.join(" ")}` : `${shQuote(rt.launcher)} ${args.join(" ")}`;
 }
 
@@ -223,6 +289,52 @@ function addGroup(map: Record<string, HookGroup[]>, event: string, hook: Json, m
 	map[event].push(matcher === undefined ? { hooks: [hook] } : { matcher, hooks: [hook] });
 }
 
+// ------------------------------------------------------------------------------------------------ paths
+
+const homeOf = (t: Target) => t.wsl?.unc ?? homedir();
+const sub = (t: Target, ...parts: string[]) => (t.wsl ? [t.wsl.unc, ...parts].join("\\") : join(homedir(), ...parts));
+
+export function claudeSettingsPath(t: Target = { key: "claude", agent: "claude" }): string {
+	if (!t.wsl && process.env.CLAUDE_CONFIG_DIR) return join(process.env.CLAUDE_CONFIG_DIR, "settings.json");
+	return sub(t, ".claude", "settings.json");
+}
+
+export function codexHooksPath(t: Target = { key: "codex", agent: "codex" }): string {
+	if (!t.wsl && process.env.CODEX_HOME) return join(process.env.CODEX_HOME, "hooks.json");
+	return sub(t, ".codex", "hooks.json");
+}
+
+export const antigravityHooksPath = (t: Target = { key: "antigravity", agent: "antigravity" }) => sub(t, ".gemini", "config", "hooks.json");
+export const antigravitySettingsPath = (t: Target = { key: "antigravity", agent: "antigravity" }) => sub(t, ".gemini", "antigravity-cli", "settings.json");
+
+export function geminiSettingsPath(t: Target = { key: "gemini", agent: "gemini" }): string {
+	if (!t.wsl && process.env.GEMINI_CLI_HOME) return join(process.env.GEMINI_CLI_HOME, ".gemini", "settings.json");
+	return sub(t, ".gemini", "settings.json");
+}
+
+const CONFIG_PATH: Record<HookAgentId, (t: Target) => string> = {
+	claude: claudeSettingsPath,
+	codex: codexHooksPath,
+	antigravity: antigravityHooksPath,
+	gemini: geminiSettingsPath,
+};
+
+/** Folders whose presence tells us the CLI has been used there. */
+function detected(t: Target): boolean {
+	const home = homeOf(t);
+	const at = (...parts: string[]) => existsSync(t.wsl ? [home, ...parts].join("\\") : join(home, ...parts));
+	switch (t.agent) {
+		case "claude":
+			return existsSync(dirname(claudeSettingsPath(t))) || at(".claude.json");
+		case "codex":
+			return existsSync(dirname(codexHooksPath(t)));
+		case "antigravity":
+			return existsSync(dirname(antigravitySettingsPath(t))) || at(".gemini", "antigravity");
+		case "gemini":
+			return existsSync(geminiSettingsPath(t)) || at(".gemini", "tmp");
+	}
+}
+
 // ------------------------------------------------------------------------------------------------ Claude Code
 
 const CLAUDE_EVENTS = [
@@ -242,24 +354,21 @@ const CLAUDE_EVENTS = [
 	"SessionEnd",
 ];
 
-export const claudeSettingsPath = () => join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "settings.json");
-
-function claudeHook(rt: Runtime, sync = false, timeout = 10): Json {
-	// exec form: no shell, so paths with spaces need no quoting on any OS
-	return sync
-		? { type: "command", command: rt.node, args: [rt.script, "claude"], timeout }
-		: { type: "command", command: rt.node, args: [rt.script, "claude"], async: true, timeout };
+/** Exec form (no shell), so paths with spaces need no quoting on any OS. */
+function claudeHook(rt: Runtime, t: Target, sync: boolean, timeout: number): Json {
+	const exec = t.wsl ? { command: "/bin/sh", args: [wslLauncher(t.wsl), "claude"] } : { command: rt.node, args: [rt.script, "claude"] };
+	return sync ? { type: "command", ...exec, timeout } : { type: "command", ...exec, async: true, timeout };
 }
 
-function installClaude(rt: Runtime, opts: InstallOptions): string {
-	const path = claudeSettingsPath();
+function installClaude(rt: Runtime, t: Target, opts: InstallOptions): string {
+	const path = claudeSettingsPath(t);
 	const settings = readJson(path);
 	const hooks = stripOurs(settings.hooks);
 	for (const event of CLAUDE_EVENTS) {
 		if (event === "MessageDisplay" && !opts.liveText) continue;
-		addGroup(hooks, event, claudeHook(rt));
+		addGroup(hooks, event, claudeHook(rt, t, false, 10));
 	}
-	addGroup(hooks, "PermissionRequest", claudeHook(rt, true, opts.approvalTimeout));
+	addGroup(hooks, "PermissionRequest", claudeHook(rt, t, true, opts.approvalTimeout));
 	settings.hooks = hooks;
 	writeJson(path, settings);
 	return path;
@@ -267,27 +376,13 @@ function installClaude(rt: Runtime, opts: InstallOptions): string {
 
 // ------------------------------------------------------------------------------------------------ Codex
 
-const CODEX_EVENTS = [
-	"SessionStart",
-	"UserPromptSubmit",
-	"PreToolUse",
-	"PostToolUse",
-	"PreCompact",
-	"PostCompact",
-	"SubagentStart",
-	"SubagentStop",
-	"Stop",
-	"Interrupt",
-	"SessionEnd",
-];
+const CODEX_EVENTS = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PreCompact", "PostCompact", "SubagentStart", "SubagentStop", "Stop", "Interrupt", "SessionEnd"];
 
-export const codexHooksPath = () => join(process.env.CODEX_HOME || join(homedir(), ".codex"), "hooks.json");
-
-function installCodex(rt: Runtime, opts: InstallOptions): string {
-	const path = codexHooksPath();
+function installCodex(rt: Runtime, t: Target, opts: InstallOptions): string {
+	const path = codexHooksPath(t);
 	const file = readJson(path);
 	const hooks = stripOurs(file.hooks);
-	const command = shellCommand(rt, "codex");
+	const command = shellCommand(rt, t, "codex");
 	for (const event of CODEX_EVENTS) {
 		const short = event === "SessionEnd" || event === "Interrupt";
 		addGroup(hooks, event, { type: "command", command, async: true, timeout: short ? 3 : 10 });
@@ -300,15 +395,13 @@ function installCodex(rt: Runtime, opts: InstallOptions): string {
 
 // ------------------------------------------------------------------------------------------------ Antigravity CLI
 
-export const antigravityHooksPath = () => join(homedir(), ".gemini", "config", "hooks.json");
-export const antigravitySettingsPath = () => join(homedir(), ".gemini", "antigravity-cli", "settings.json");
 const AGY_NAME = "coding-agents-deck";
 
-function installAntigravity(rt: Runtime): string {
-	const path = antigravityHooksPath();
+function installAntigravity(rt: Runtime, t: Target): string {
+	const path = antigravityHooksPath(t);
 	const file = readJson(path);
-	const flat = (event: string) => [{ type: "command", command: cmdCommand(rt, "antigravity", event), timeout: 10 }];
-	const tool = (event: string) => [{ matcher: "*", hooks: [{ type: "command", command: cmdCommand(rt, "antigravity", event), timeout: 10 }] }];
+	const flat = (event: string) => [{ type: "command", command: cmdCommand(rt, t, "antigravity", event), timeout: 10 }];
+	const tool = (event: string) => [{ matcher: "*", hooks: [{ type: "command", command: cmdCommand(rt, t, "antigravity", event), timeout: 10 }] }];
 	file[AGY_NAME] = {
 		SessionStart: flat("SessionStart"),
 		PreInvocation: flat("PreInvocation"),
@@ -320,18 +413,18 @@ function installAntigravity(rt: Runtime): string {
 	writeJson(path, file);
 
 	// the terminal-title command is the only place agy reports a pending tool confirmation
-	const settingsPath = antigravitySettingsPath();
+	const settingsPath = antigravitySettingsPath(t);
 	const settings = readJson(settingsPath);
 	const title = settings.title as Json | undefined;
 	if (!title || isOurs(title)) {
-		settings.title = { type: "command", command: cmdCommand(rt, "antigravity", "Title") };
+		settings.title = { type: "command", command: cmdCommand(rt, t, "antigravity", "Title") };
 		writeJson(settingsPath, settings);
 	}
 	return path;
 }
 
-function uninstallAntigravity(): string {
-	const path = antigravityHooksPath();
+function uninstallAntigravity(t: Target): string {
+	const path = antigravityHooksPath(t);
 	if (existsSync(path)) {
 		const file = readJson(path);
 		if (AGY_NAME in file) {
@@ -339,7 +432,7 @@ function uninstallAntigravity(): string {
 			writeJson(path, file);
 		}
 	}
-	const settingsPath = antigravitySettingsPath();
+	const settingsPath = antigravitySettingsPath(t);
 	if (existsSync(settingsPath)) {
 		const settings = readJson(settingsPath);
 		if (isOurs(settings.title)) {
@@ -354,13 +447,11 @@ function uninstallAntigravity(): string {
 
 const GEMINI_EVENTS = ["SessionStart", "SessionEnd", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool", "Notification", "PreCompress"];
 
-export const geminiSettingsPath = () => join(process.env.GEMINI_CLI_HOME || homedir(), ".gemini", "settings.json");
-
-function installGemini(rt: Runtime): string {
-	const path = geminiSettingsPath();
+function installGemini(rt: Runtime, t: Target): string {
+	const path = geminiSettingsPath(t);
 	const settings = readJson(path);
 	const hooks = stripOurs(settings.hooks);
-	const command = shellCommand(rt, "gemini");
+	const command = shellCommand(rt, t, "gemini");
 	for (const event of GEMINI_EVENTS) {
 		const matcher = event === "BeforeTool" || event === "AfterTool" ? ".*" : undefined;
 		addGroup(hooks, event, { name: "coding-agents-deck", type: "command", command, timeout: 5000 }, matcher);
@@ -374,43 +465,23 @@ function installGemini(rt: Runtime): string {
 
 export type InstallOptions = { liveText: boolean; approvalTimeout: number };
 
-const PATHS: Record<HookAgentId, () => string> = {
-	claude: claudeSettingsPath,
-	codex: codexHooksPath,
-	antigravity: antigravityHooksPath,
-	gemini: geminiSettingsPath,
-};
-
-/** Folders whose presence tells us the CLI has been used on this computer. */
-function detected(agent: HookAgentId): boolean {
-	switch (agent) {
+export function install(t: Target, rt: Runtime, opts: InstallOptions): string {
+	if (t.wsl) prepareWsl(rt, t.wsl);
+	switch (t.agent) {
 		case "claude":
-			return existsSync(dirname(claudeSettingsPath())) || existsSync(join(homedir(), ".claude.json"));
+			return installClaude(rt, t, opts);
 		case "codex":
-			return existsSync(dirname(codexHooksPath()));
+			return installCodex(rt, t, opts);
 		case "antigravity":
-			return existsSync(dirname(antigravitySettingsPath())) || existsSync(join(homedir(), ".gemini", "antigravity"));
+			return installAntigravity(rt, t);
 		case "gemini":
-			return existsSync(geminiSettingsPath()) || existsSync(join(homedir(), ".gemini", "tmp"));
+			return installGemini(rt, t);
 	}
 }
 
-export function install(agent: HookAgentId, rt: Runtime, opts: InstallOptions): string {
-	switch (agent) {
-		case "claude":
-			return installClaude(rt, opts);
-		case "codex":
-			return installCodex(rt, opts);
-		case "antigravity":
-			return installAntigravity(rt);
-		case "gemini":
-			return installGemini(rt);
-	}
-}
-
-export function uninstall(agent: HookAgentId): string {
-	if (agent === "antigravity") return uninstallAntigravity();
-	const path = PATHS[agent]();
+export function uninstall(t: Target): string {
+	if (t.agent === "antigravity") return uninstallAntigravity(t);
+	const path = CONFIG_PATH[t.agent](t);
 	if (!existsSync(path)) return path;
 	const data = readJson(path);
 	if (!isOurs(data.hooks)) return path;
@@ -421,27 +492,25 @@ export function uninstall(agent: HookAgentId): string {
 	return path;
 }
 
-export function status(agent: HookAgentId, rt: Runtime, opts: InstallOptions): AgentStatus {
-	const path = PATHS[agent]();
-	const result: AgentStatus = { agent, detected: detected(agent), installed: false, upToDate: false, path, note: "" };
-	let text = "";
+export function status(t: Target, rt: Runtime, opts: InstallOptions): AgentStatus {
+	const path = CONFIG_PATH[t.agent](t);
+	const result: AgentStatus = { key: t.key, agent: t.agent, where: t.wsl ? `WSL · ${t.wsl.name}` : "", detected: false, installed: false, upToDate: false, path, note: "" };
 	try {
-		text = existsSync(path) ? readFileSync(path, "utf8") : "";
+		result.detected = detected(t);
+		const text = existsSync(path) ? readFileSync(path, "utf8") : "";
+		result.installed = text.includes(MARK);
 	} catch (error) {
 		result.note = (error as Error).message;
 		return result;
 	}
-	result.installed = text.includes(MARK);
 	if (!result.installed) return result;
-	if (agent === "claude") {
-		// Claude Code runs Stream Deck's node directly: the entry must name the current runtime
-		const settings = safeRead(path);
-		const want = JSON.stringify(rt.node);
-		const entries = JSON.stringify(settings.hooks ?? {});
+	if (t.agent === "claude") {
+		// natively Claude Code runs Stream Deck's node directly: the entry must name the current runtime
+		const entries = JSON.stringify(safeRead(path).hooks ?? {});
 		const live = entries.includes("MessageDisplay");
-		result.upToDate = entries.includes(want) && live === opts.liveText;
+		result.upToDate = (t.wsl ? true : entries.includes(JSON.stringify(rt.node))) && live === opts.liveText;
 	} else {
-		result.upToDate = text.includes(agent === "antigravity" ? "antigravity" : agent);
+		result.upToDate = true;
 	}
 	return result;
 }

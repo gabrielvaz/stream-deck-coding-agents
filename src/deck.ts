@@ -6,10 +6,10 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AgentId, HOOK_AGENTS, type HookAgentId } from "./core/agents";
+import type { AgentId } from "./core/agents";
 import { clearDemo, runDemo } from "./core/demo";
 import { WindowFocuser } from "./core/focus";
-import { type AgentStatus, install, type InstallOptions, prepareRuntime, type Runtime, runtimeFor, status, uninstall } from "./core/installer";
+import { type AgentStatus, install, type InstallOptions, listWslDistros, nativeTargets, prepareRuntime, prepareWsl, type Runtime, runtimeFor, status, type Target, uninstall, type WslDistro, wslTargets } from "./core/installer";
 import { HookServer } from "./core/server";
 import { type Session, SessionStore } from "./core/store";
 import { decisionTile, emptyTile, hubTile, pageTile, type RenderContext, sessionTile, toDataUrl } from "./render/tiles";
@@ -62,6 +62,8 @@ export class Deck {
 	private demoStart = 0;
 	private demoApplied = new Map<string, number>();
 	private inspectorPush: ((payload: Record<string, unknown>) => void) | null = null;
+	private distros: WslDistro[] = [];
+	private distrosAt = 0;
 
 	constructor(private readonly log: Logger) {
 		this.settings = resolveSettings({});
@@ -129,52 +131,76 @@ export class Deck {
 		return { liveText: this.settings.liveText, approvalTimeout: 300 };
 	}
 
+	/** Agents on this computer, plus (on Windows) agents inside running WSL distros. */
+	targets(): Target[] {
+		if (process.platform === "win32" && Date.now() - this.distrosAt > 30_000) {
+			this.distrosAt = Date.now();
+			this.distros = listWslDistros(this.rt.node);
+		}
+		return [...nativeTargets(), ...wslTargets(this.distros)];
+	}
+
 	refreshStatus(): AgentStatus[] {
-		this.statuses = HOOK_AGENTS.map((agent) => {
-			try {
-				return status(agent, this.rt, this.installOptions());
-			} catch (error) {
-				return { agent, detected: false, installed: false, upToDate: false, path: "", note: (error as Error).message };
-			}
-		});
+		this.statuses = this.targets()
+			.map((t) => {
+				try {
+					return status(t, this.rt, this.installOptions());
+				} catch (error) {
+					return { key: t.key, agent: t.agent, where: t.wsl ? `WSL · ${t.wsl.name}` : "", detected: false, installed: false, upToDate: false, path: "", note: (error as Error).message };
+				}
+			})
+			// WSL rows only where that agent is actually used
+			.filter((s) => !s.where || s.detected || s.installed);
 		return this.statuses;
 	}
 
 	/** Keeps installed hooks pointing at the current Stream Deck Node.js runtime. */
 	private selfHeal(): void {
 		if (!this.listening) return;
+		const targets = new Map(this.targets().map((t) => [t.key, t]));
 		for (const s of this.refreshStatus()) {
-			if (s.installed && !s.upToDate && s.agent === "claude") {
-				try {
-					install(s.agent, this.rt, this.installOptions());
-					this.log.info(`updated ${s.agent} hooks (${s.path})`);
-				} catch (error) {
-					this.log.warn(`could not update ${s.agent} hooks: ${(error as Error).message}`);
+			const t = targets.get(s.key);
+			if (!t || !s.installed) continue;
+			try {
+				if (t.wsl) prepareWsl(this.rt, t.wsl); // the WSL launcher names Stream Deck's node.exe
+				if (!s.upToDate && s.agent === "claude") {
+					install(t, this.rt, this.installOptions());
+					this.log.info(`updated ${s.key} hooks (${s.path})`);
 				}
+			} catch (error) {
+				this.log.warn(`could not update ${s.key} hooks: ${(error as Error).message}`);
 			}
 		}
 		this.refreshStatus();
 	}
 
-	connect(agent: HookAgentId): { ok: boolean; message: string } {
+	private target(key: string): Target | null {
+		return this.targets().find((t) => t.key === key) ?? null;
+	}
+
+	connect(key: string): { ok: boolean; message: string } {
 		if (!this.listening) return { ok: false, message: this.problem || "the plugin is still starting" };
+		const t = this.target(key);
+		if (!t) return { ok: false, message: `Unknown agent "${key}".` };
 		try {
-			const path = install(agent, this.rt, this.installOptions());
+			const path = install(t, this.rt, this.installOptions());
 			this.refreshStatus();
 			this.requestFrame();
-			this.log.info(`connected ${agent}: ${path}`);
+			this.log.info(`connected ${key}: ${path}`);
 			return { ok: true, message: `Hooks added to ${path}` };
 		} catch (error) {
 			return { ok: false, message: (error as Error).message };
 		}
 	}
 
-	disconnect(agent: HookAgentId): { ok: boolean; message: string } {
+	disconnect(key: string): { ok: boolean; message: string } {
+		const t = this.target(key);
+		if (!t) return { ok: false, message: `Unknown agent "${key}".` };
 		try {
-			const path = uninstall(agent);
+			const path = uninstall(t);
 			this.refreshStatus();
 			this.requestFrame();
-			this.log.info(`disconnected ${agent}: ${path}`);
+			this.log.info(`disconnected ${key}: ${path}`);
 			return { ok: true, message: `Hooks removed from ${path}` };
 		} catch (error) {
 			return { ok: false, message: (error as Error).message };

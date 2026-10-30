@@ -46,12 +46,13 @@ async function onInspectorMessage(payload: JsonValue): Promise<void> {
 			return;
 		case "connect":
 		case "disconnect": {
-			const agents = msg.agent === "all" ? deck.statuses.filter((s) => s.detected && !s.installed).map((s) => s.agent) : isHookAgent(msg.agent) ? [msg.agent] : [];
-			if (agents.length === 0) {
-				await reply({ message: { ok: false, text: msg.agent === "all" ? "Nothing new to connect: no other agent was found on this computer." : "Unknown agent." } });
+			const key = typeof msg.target === "string" ? msg.target : isHookAgent(msg.agent) ? msg.agent : msg.agent === "all" ? "all" : "";
+			const keys = key === "all" ? deck.statuses.filter((s) => s.detected && !s.installed).map((s) => s.key) : key ? [key] : [];
+			if (keys.length === 0) {
+				await reply({ message: { ok: false, text: key === "all" ? "Nothing new to connect: no other agent was found on this computer." : "Unknown agent." } });
 				return;
 			}
-			const results = agents.map((agent) => ({ agent, ...(msg.event === "connect" ? deck.connect(agent) : deck.disconnect(agent)) }));
+			const results = keys.map((k) => (msg.event === "connect" ? deck.connect(k) : deck.disconnect(k)));
 			const failed = results.filter((r) => !r.ok);
 			await reply({ message: { ok: failed.length === 0, text: results.map((r) => r.message).join("\n") } });
 			return;

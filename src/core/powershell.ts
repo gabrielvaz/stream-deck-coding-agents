@@ -22,6 +22,24 @@ public static class DeckWin {
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr p);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
+  [DllImport("kernel32.dll")] public static extern bool AttachConsole(uint pid);
+  [DllImport("kernel32.dll")] public static extern bool FreeConsole();
+  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+  // The window that shows a console process: conhost's own window, or for ConPTY sessions
+  // (Windows Terminal, VS Code…) the terminal window that owns the pseudo-console window.
+  public static IntPtr ConsoleOwner(uint pid) {
+    FreeConsole();
+    if (!AttachConsole(pid)) return IntPtr.Zero;
+    IntPtr h = GetConsoleWindow();
+    FreeConsole();
+    if (h == IntPtr.Zero) return IntPtr.Zero;
+    IntPtr owner = GetAncestor(h, 3);
+    if (owner != IntPtr.Zero && IsWindowVisible(owner)) return owner;
+    return IsWindowVisible(h) ? h : IntPtr.Zero;
+  }
+  public static string Title(IntPtr h) { var sb = new StringBuilder(512); GetWindowText(h, sb, 512); return sb.ToString(); }
+  public static uint OwnerPid(IntPtr h) { uint pid; GetWindowThreadProcessId(h, out pid); return pid; }
   public static bool Focus(IntPtr h) {
     if (h == IntPtr.Zero) return false;
     if (IsIconic(h)) ShowWindow(h, 9);
@@ -82,18 +100,37 @@ function Select-DeckTab([IntPtr]$h, $titles) {
   }
   return $false
 }
-function Invoke-DeckFocus($req) {
-  $titles = @($req.titles | Where-Object { $_ -and $_.Length -ge 3 })
+$script:skip = @('explorer.exe', 'svchost.exe', 'services.exe', 'wininit.exe', 'winlogon.exe', 'sihost.exe', 'userinit.exe')
+# The window that hosts the session: the first process up the chain that owns a window, or whose
+# console belongs to a visible terminal window. Never the desktop shell.
+function Find-DeckWindow($req) {
   $chain = @()
   foreach ($id in @($req.pids)) { if ([int]$id -gt 0) { $chain = Get-DeckChain ([int]$id); if ($chain.Count -gt 0) { break } } }
   foreach ($p in $chain) {
+    if ($script:skip -contains $p.name.ToLower()) { continue }
     $proc = Get-Process -Id $p.pid
-    if ($proc -and $proc.MainWindowHandle -ne 0) {
-      $ok = [DeckWin]::Focus($proc.MainWindowHandle)
-      $tab = $false
-      if ($proc.ProcessName -eq 'WindowsTerminal') { $tab = Select-DeckTab $proc.MainWindowHandle $titles }
-      return @{ ok = $ok; via = "window:$($proc.ProcessName)"; tab = $tab }
+    if ($proc -and $proc.MainWindowHandle -ne 0) { return @{ h = $proc.MainWindowHandle; how = "window:$($proc.ProcessName)" } }
+    $h = [DeckWin]::ConsoleOwner([uint32]$p.pid)
+    if ($h -ne [IntPtr]::Zero) {
+      $owner = Get-Process -Id ([DeckWin]::OwnerPid($h))
+      if ($owner -and $script:skip -notcontains ($owner.ProcessName.ToLower() + '.exe')) { return @{ h = $h; how = "console:$($owner.ProcessName)" } }
     }
+  }
+  return $null
+}
+function Invoke-DeckProbe($req) {
+  $w = Find-DeckWindow $req
+  if (-not $w) { return @{ ok = $false; via = 'none' } }
+  return @{ ok = $true; via = $w.how; title = [DeckWin]::Title($w.h) }
+}
+function Invoke-DeckFocus($req) {
+  $titles = @($req.titles | Where-Object { $_ -and $_.Length -ge 3 })
+  $w = Find-DeckWindow $req
+  if ($w) {
+    $ok = [DeckWin]::Focus($w.h)
+    $tab = $false
+    if ($w.how -like '*WindowsTerminal') { $tab = Select-DeckTab $w.h $titles }
+    return @{ ok = $ok; via = $w.how; tab = $tab }
   }
   foreach ($t in $titles) {
     $h = [DeckWin]::FindByTitle($t)
@@ -107,6 +144,7 @@ function Invoke-Deck([string]$b64) {
     $res = $null
     if ($req.op -eq 'chain') { $res = @{ ok = $true; chain = (Get-DeckChain ([int]$req.pid)) } }
     elseif ($req.op -eq 'focus') { $res = Invoke-DeckFocus $req }
+    elseif ($req.op -eq 'probe') { $res = Invoke-DeckProbe $req }
     elseif ($req.op -eq 'ping') { $res = @{ ok = $true } }
     else { $res = @{ ok = $false; via = 'unknown op' } }
     [Console]::Out.WriteLine(($res | ConvertTo-Json -Compress -Depth 5))
@@ -125,11 +163,14 @@ export class PowerShellHelper {
 	private current: Pending | null = null;
 	private buffer = "";
 	private ready = false;
+	private disposed = false;
+	private lastSpawn = 0;
 
 	constructor(private readonly log: (msg: string) => void = () => {}) {}
 
 	private start(): void {
-		if (this.child) return;
+		if (this.child || this.disposed) return;
+		this.lastSpawn = Date.now();
 		const child = spawn("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "-"], {
 			windowsHide: true,
 			stdio: ["pipe", "pipe", "pipe"],
@@ -148,6 +189,10 @@ export class PowerShellHelper {
 				clearTimeout(p.timer);
 				p.resolve({ ok: false, via: "powershell exited" });
 			}
+			// attaching to another process's console (to find its terminal window) ends the host
+			// after it answers: start a fresh one now so the next request does not pay the start-up
+			if (!this.disposed) setTimeout(() => this.start(), Math.max(0, 2000 - (Date.now() - this.lastSpawn)));
+			if (this.queue.length > 0) setTimeout(() => this.next(), 50);
 		});
 		child.on("error", (error) => this.log(`powershell: ${error.message}`));
 		// define the functions once; each line is a complete statement for `-Command -`
@@ -208,6 +253,7 @@ export class PowerShellHelper {
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		this.child?.kill();
 		this.child = null;
 	}

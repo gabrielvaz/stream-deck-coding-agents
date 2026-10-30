@@ -6,7 +6,7 @@
  *
  *   npm run build && node scripts/windows-smoke.mjs
  */
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { spawn, execFileSync } from "node:child_process";
 import { PLUGIN_DIR, StreamDeckSim } from "./sim.mjs";
@@ -66,7 +66,15 @@ r = await run("cmd.exe", ["/d", "/c", agy.PreToolUse[0].hooks[0].command], { con
 console.log("agy PreToolUse:", r);
 await new Promise((r) => setTimeout(r, 800));
 await sim.stop();
-rmSync(homeWsl, { recursive: true, force: true });
+await new Promise((r) => setTimeout(r, 1500)); // let Windows release the files
+rmSync(homeWsl, { recursive: true, force: true, maxRetries: 5, retryDelay: 400 });
 // the test profile is gone, so drop its %ProgramData% launcher too (the plugin rewrites it on start)
-if (agy.PreToolUse[0].hooks[0].command.startsWith("C:\\ProgramData")) rmSync(`/mnt/c/ProgramData/coding-agents-deck/${user}`, { recursive: true, force: true });
+if (agy.PreToolUse[0].hooks[0].command.startsWith("C:\\ProgramData")) {
+	rmSync(`/mnt/c/ProgramData/coding-agents-deck/${user}`, { recursive: true, force: true });
+	try {
+		rmdirSync("/mnt/c/ProgramData/coding-agents-deck");
+	} catch {
+		// other users still have a launcher there
+	}
+}
 console.log("done; ProgramData shim (only when the profile path has spaces):", agy.PreToolUse[0].hooks[0].command.split(" ")[0]);

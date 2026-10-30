@@ -35,7 +35,8 @@
 		const list = $("agents");
 		list.textContent = "";
 		for (const agent of status.agents || []) {
-			const [name, file] = NAMES[agent.agent] || [agent.agent, agent.path];
+			const [base, file] = NAMES[agent.agent] || [agent.agent, agent.path];
+			const name = agent.where ? `${base} · ${agent.where}` : base;
 			const row = document.createElement("div");
 			row.className = "agent";
 			const label = document.createElement("div");
@@ -56,7 +57,7 @@
 			button.onclick = () => {
 				busy = true;
 				$("msg").textContent = "";
-				send({ event: agent.installed && agent.upToDate ? "disconnect" : "connect", agent: agent.agent });
+				send({ event: agent.installed && agent.upToDate ? "disconnect" : "connect", target: agent.key });
 			};
 			row.append(label, pill, button);
 			list.append(row);
