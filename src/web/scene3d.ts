@@ -423,6 +423,36 @@ export class Scene3D {
 			this.hovered = null;
 		});
 		this.controls.addEventListener("start", () => (this.lastInteraction = performance.now()));
+
+		// keys 1–9 on the keyboard press the first nine Stream Deck keys (hold works too)
+		const visible = () => {
+			const r = this.host.getBoundingClientRect();
+			return r.bottom > 0 && r.top < innerHeight;
+		};
+		window.addEventListener("keydown", (ev) => {
+			const n = Number(ev.key);
+			if (ev.repeat || !Number.isInteger(n) || n < 1 || n > 9 || !visible() || ev.target instanceof HTMLInputElement) return;
+			const key = this.keys[n - 1];
+			if (key.down) return;
+			this.click(0.9);
+			key.down = { at: performance.now(), uid: key.session?.uid ?? null, held: false };
+			const down = key.down;
+			setTimeout(() => {
+				if (key.down === down) {
+					down.held = true;
+					this.hold(key, down.uid);
+				}
+			}, HOLD_MS);
+		});
+		window.addEventListener("keyup", (ev) => {
+			const n = Number(ev.key);
+			if (!Number.isInteger(n) || n < 1 || n > 9) return;
+			const key = this.keys[n - 1];
+			if (!key.down) return;
+			const { held, uid } = key.down;
+			key.down = null;
+			if (!held) this.press(key, uid);
+		});
 	}
 
 	private setPointer(ev: PointerEvent): void {

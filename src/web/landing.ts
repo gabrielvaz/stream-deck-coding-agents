@@ -26,7 +26,10 @@ function frame(): void {
 	const sessions = store.ordered(false).map((s) => ({ ...s, title: viewTitle(s.title, s.project) }));
 	const ctx = { now, palette: AGENTS, animate: true, theme };
 	const approval = sessions.find((s) => s.activity === "approval") ?? null;
+	// the flat deck is only the fallback when the 3D stage is running
+	const flatHidden = document.body.classList.contains("has-3d");
 	for (const deck of document.querySelectorAll<HTMLElement>(".deck[data-keys]")) {
+		if (flatHidden && deck.classList.contains("flat")) continue;
 		const imgs = deck.querySelectorAll<HTMLImageElement>("img");
 		const count = imgs.length;
 		const svgs: string[] = [];
