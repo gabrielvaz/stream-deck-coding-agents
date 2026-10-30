@@ -2,7 +2,9 @@
 
 > Seus agentes de código no **Elgato Stream Deck**: uma tecla por sessão de Claude Code, Codex, Gemini CLI, Antigravity CLI ou herdr, com o mesmo visual dos tiles do Logitech MX Keypad (orbe colorido, estado, cronômetro, texto ao vivo). **Apertou a tecla, abre a janela daquela sessão.** Segurou, aprova o pedido de permissão. O mesmo painel também roda no navegador e no **Steam Deck**.
 
-![Painel no navegador (modo demo)](docs/screenshot.png)
+![Teclas do Stream Deck renderizadas pelo plugin (modo demo)](docs/streamdeck.png)
+
+![Painel no navegador / Steam Deck (modo demo)](docs/screenshot.png)
 
 Zero dependências: Node 18+ no computador onde os agentes rodam. O plugin do Stream Deck usa o Node que o próprio app da Elgato já traz.
 

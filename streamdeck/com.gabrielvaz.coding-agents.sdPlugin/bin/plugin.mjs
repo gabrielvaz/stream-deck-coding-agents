@@ -414,19 +414,27 @@ function wrap(text, width, maxLines) {
 
 const clipText = (text, max) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
+let gradientSeq = 0;
 function orbSvg(color, opacity, glowBoost = 1) {
-  // concentric circles instead of filters: every Stream Deck rasterizer renders this the same way
-  const rings = [
-    [78, 0.08],
-    [66, 0.12],
-    [54, 0.18],
-    [42, 0.26],
-    [32, 0.36],
-    [22, 0.5],
-  ];
-  const parts = rings.map(([r, o]) => `<circle cx="72" cy="150" r="${r}" fill="${color}" opacity="${(o * opacity * glowBoost).toFixed(3)}"/>`);
-  parts.push(`<circle cx="72" cy="150" r="13" fill="#ffffff" opacity="${(0.85 * opacity).toFixed(3)}"/>`);
-  return parts.join("");
+  // radial gradients (no filters): every Stream Deck rasterizer renders them smoothly
+  gradientSeq += 1;
+  const id = `g${gradientSeq}`;
+  const o = Math.min(1, opacity * glowBoost);
+  return `<defs>
+    <radialGradient id="${id}" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="${color}" stop-opacity="${(0.95 * o).toFixed(3)}"/>
+      <stop offset="0.35" stop-color="${color}" stop-opacity="${(0.55 * o).toFixed(3)}"/>
+      <stop offset="0.7" stop-color="${color}" stop-opacity="${(0.14 * o).toFixed(3)}"/>
+      <stop offset="1" stop-color="${color}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="${id}c" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="${(0.95 * opacity).toFixed(3)}"/>
+      <stop offset="0.45" stop-color="${color}" stop-opacity="${(0.6 * opacity).toFixed(3)}"/>
+      <stop offset="1" stop-color="${color}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="72" cy="150" r="86" fill="url(#${id})"/>
+  <circle cx="72" cy="146" r="34" fill="url(#${id}c)"/>`;
 }
 
 function sessionSvg(session) {
