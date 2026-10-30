@@ -36,6 +36,8 @@ export type RenderContext = {
 	holdProgress?: number;
 	/** Bigger text, fewer detail lines: for 72 px keys. */
 	large?: boolean;
+	/** Scroll long titles (default). Off for still pictures. */
+	marquee?: boolean;
 };
 
 const esc = (text: string) =>
@@ -291,10 +293,17 @@ function lastWords(text: string): string {
 	return (sentences[sentences.length - 1] ?? "").trim();
 }
 
-/** Largest font size (down to 70 %) at which `text` fits in `avail` px. */
+/** Worst-case width of bold text (wide fallback fonts), so the state word never runs into the timer. */
+function boldWidth(text: string, size: number): number {
+	let w = 0;
+	for (const ch of text) w += /[il.,:;'|!]/.test(ch) ? 0.36 : /[mwMW]/.test(ch) ? 1.05 : /[A-Z0-9]/.test(ch) ? 0.8 : 0.68;
+	return w * size;
+}
+
+/** Largest font size (down to 65 %) at which `text` fits in `avail` px. */
 function fitSize(text: string, size: number, avail: number): number {
 	let s = size;
-	while (s > size * 0.7 && sansWidth(text, s) > avail) s -= 0.5;
+	while (s > size * 0.65 && boldWidth(text, s) > avail) s -= 0.5;
 	return s;
 }
 
@@ -331,13 +340,13 @@ export function sessionTile(session: Session, ctx: RenderContext): string {
 		parts.push(`<rect x="2.5" y="2.5" width="139" height="139" rx="20" fill="none" stroke="${look.orb}" stroke-opacity="${pulse.toFixed(2)}" stroke-width="5"/>`);
 	}
 	if (unseen) parts.push(`<circle cx="14" cy="${m.title === 19 ? 20 : 19}" r="4.5" fill="${waiting ? look.orb : "#FFFFFF"}"/>`);
-	parts.push(titleText(session.title, m.title === 19 ? 26 : 27, m.title, titleColor, ctx.now, ctx.animate && !still, titleLeft));
+	parts.push(titleText(session.title, m.title === 19 ? 26 : 27, m.title, titleColor, ctx.now, ctx.animate && ctx.marquee !== false && !still, titleLeft));
 
 	const timer = timerFor(session, ctx.now);
 	const timerW = timer.length * m.timer * 0.6;
 	const label = LABELS[session.activity];
 	const labelY = m.title === 19 ? 49 : 52;
-	const labelSize = fitSize(label, m.label, SIZE - 11 - timerW - 14);
+	const labelSize = fitSize(label, m.label, SIZE - 11 - timerW - 10);
 	parts.push(`<text x="11" y="${labelY}" font-family="${SANS}" font-size="${labelSize}" font-weight="700" fill="${look.label}">${esc(label)}</text>`);
 	parts.push(`<text x="134" y="${labelY}" text-anchor="end" font-family="${MONO}" font-size="${m.timer}" font-weight="600" fill="#C9CCD2">${esc(timer)}</text>`);
 	detail.lines.forEach((line, i) => {

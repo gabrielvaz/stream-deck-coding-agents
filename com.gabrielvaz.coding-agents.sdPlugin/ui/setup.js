@@ -45,13 +45,13 @@
 			b.textContent = name;
 			const small = document.createElement("small");
 			small.title = agent.path || file;
-			small.textContent = agent.note || (agent.installed ? file : agent.detected ? "found on this computer" : "not found on this computer");
+			small.textContent = agent.note || (agent.installed ? `connected · ${file}` : agent.detected ? "found, not connected" : "not found");
 			label.append(b, small);
-			const pill = document.createElement("span");
-			pill.className = `pill${agent.installed ? (agent.upToDate ? " on" : " warn") : ""}`;
-			pill.textContent = agent.installed ? (agent.upToDate ? "Connected" : "Update") : "Off";
+			const dotEl = document.createElement("span");
+			dotEl.className = `state${agent.installed ? (agent.upToDate ? " on" : " warn") : ""}`;
+			dotEl.title = agent.installed ? (agent.upToDate ? "Connected" : "Needs an update") : "Not connected";
 			const button = document.createElement("button");
-			button.className = "sdpi-button";
+			button.className = agent.installed && agent.upToDate ? "" : "primary";
 			button.textContent = agent.installed ? (agent.upToDate ? "Disconnect" : "Update") : "Connect";
 			button.disabled = busy;
 			button.onclick = () => {
@@ -59,7 +59,7 @@
 				$("msg").textContent = "";
 				send({ event: agent.installed && agent.upToDate ? "disconnect" : "connect", target: agent.key });
 			};
-			row.append(label, pill, button);
+			row.append(dotEl, label, button);
 			list.append(row);
 		}
 

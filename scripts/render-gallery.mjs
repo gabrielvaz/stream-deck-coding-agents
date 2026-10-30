@@ -45,7 +45,7 @@ store.markSeen("codex:s7");
 
 const now = Date.now();
 const order = store.ordered(false);
-const ctx = (t = now) => ({ now: t, palette, animate: true });
+const ctx = (t = now) => ({ now: t, palette, animate: true, marquee: false });
 const tile = (s, t, large = false) => lib.sessionTile(s, { ...ctx(t), large });
 const hub = (t = now) =>
 	lib.hubTile({ summary: store.summary(), pips: order.slice(0, 11), page: 0, pages: 1, listening: true, problem: "", connectedAgents: 3 }, ctx(t));

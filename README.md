@@ -1,226 +1,161 @@
-# Stream Deck Coding Agents
+# Coding Agents for Stream Deck
 
-> Seus agentes de código no **Elgato Stream Deck**: uma tecla por sessão de Claude Code, Codex, Gemini CLI, Antigravity CLI ou herdr, com o mesmo visual dos tiles do Logitech MX Keypad (orbe colorido, estado, cronômetro, texto ao vivo). **Apertou a tecla, abre a janela daquela sessão.** Segurou, aprova o pedido de permissão. O mesmo painel também roda no navegador e no **Steam Deck**.
+Live keys for your AI coding agents on the **Elgato Stream Deck**: **Claude Code**, **OpenAI Codex**, **Google Antigravity CLI** and **Gemini CLI**. Each key is one session: its title, state, timer, current tool or the words it is writing, and a glowing orb that breathes while the agent works. **Press a key to jump to that session's window. Hold it to approve a permission request.**
 
-![Teclas do Stream Deck renderizadas pelo plugin (modo demo)](docs/streamdeck.png)
+Inspired by the agent status pad shown on the Logitech MX Creative Keypad, rebuilt from scratch as a Stream Deck plugin for Windows and macOS.
 
-![Painel no navegador / Steam Deck (modo demo)](docs/screenshot.png)
+![Stream Deck keys drawn by the plugin](docs/gallery-1-hero.png)
 
-Zero dependências: Node 18+ no computador onde os agentes rodam. O plugin do Stream Deck usa o Node que o próprio app da Elgato já traz.
+| | |
+| --- | --- |
+| ![Every state](docs/gallery-2-states.png) | ![Approve from the deck](docs/gallery-3-approve.png) |
 
----
+- **Zero setup outside Stream Deck.** The plugin runs its own local endpoint and uses Stream Deck's built-in Node.js. You do not need Node.js, a server or a terminal command.
+- **One click per agent.** In the key settings, press *Connect* next to each agent. The plugin adds its hooks to that agent's settings file, keeps a backup, and removes only its own entries when you disconnect.
+- **Windows, macOS and WSL.** On Windows it also finds agents running inside WSL distributions.
+- **Private by design.** Everything stays on your computer (127.0.0.1, token-protected). No account, no telemetry.
 
-## Como funciona
+## Keys
 
-```
- Claude Code ─┐  hooks (JSON por evento)   ┌──────────────────┐  SSE  ┌────────────────────────┐
- Codex CLI   ─┤ ─────────────────────────▶ │  agent-deck      │ ────▶ │ Stream Deck (plugin)   │  tecla = abre a janela
- Gemini CLI  ─┤                            │  serve  :7777    │ ◀──── │ Steam Deck / navegador │  segurar = Allow
- Antigravity ─┘                            │                  │ ações └────────────────────────┘
- herdr ◀──── socket ~/.config/herdr ──────▶│                  │
- adapters (Orbtile /a/v1) ────────────────▶└──────────────────┘ ──▶ foca o terminal / IDE da sessão
-```
-
-1. `agent-deck serve` roda no PC. Recebe os hooks, guarda o estado de cada sessão e serve a interface.
-2. `agent-deck install all` grava os hooks nos arquivos de cada CLI (com backup e sem duplicar). Cada evento vira uma transição de estado. O hook também registra o **PID do processo do agente**: é com ele que o botão acha a janela certa.
-3. O plugin do Stream Deck (ou o navegador / Steam Deck) assina o stream de eventos e desenha os tiles.
-4. Apertar uma tecla manda `focus` para o servidor, que traz a janela da sessão para frente (Windows Terminal, VS Code, Terminal.app, iTerm2, X11…). Segurar 0,6 s em um tile **Approval** manda `allow`.
-
-## Estados (iguais aos do keypad)
-
-| Tile | `activity` | Dispara com |
-| --- | --- | --- |
-| **Starting** | `starting` | `SessionStart` |
-| **Thinking** | `thinking` | prompt enviado, modelo pensando, entre ferramentas |
-| **Tool** | `tool` | ferramenta rodando: `Bash  npm test`, `Read  index.ts`… |
-| **Writing** | `streaming` | texto do assistente chegando (Claude `MessageDisplay`) |
-| **Approval** | `waitingPermission` | `PermissionRequest`, `ToolPermission`, `permission_prompt` |
-| **Question** | `waitingQuestion` | `AskUserQuestion`, `request_user_input`, `agent_needs_input` |
-| **Compacting** | `compacting` | compactação de contexto; depois volta ao estado anterior |
-| **Done** | `done` | `Stop` / `AfterAgent`; mostra a última linha da resposta |
-| **Error** | `error` | `StopFailure`, erro de API, `terminationReason: error` |
-| **Idle** | `idle` | esperando prompt (`idle_prompt`, `Interrupt`, 90 s após Done) |
-| **Offline** | `offline` | adapter sem heartbeat ou TTL vencido |
-
-Cores: cada agente tem cor de trabalho e cor de alarme (Claude âmbar/terracota, Codex azul/magenta, Antigravity verde/rosa, Gemini violeta/rosa, Grok branco/laranja); erro é vermelho. Ordem das teclas: **esperando você → trabalhando → terminou há < 15 s → done → idle → offline**, recalculada a cada 8 s. O tile **hub** mostra quantos trabalhando, quantos esperando (e qual), quantos done, contagem por agente e um pip por tecla.
-
-## 1. Servidor (PC onde os agentes rodam)
-
-```bash
-git clone https://github.com/gabrielvaz/stream-deck-coding-agents
-cd stream-deck-coding-agents
-node bin/agent-deck.mjs serve        # deixe rodando (ou use steamdeck/agent-deck.service / agent-deck-server.bat)
-```
-
-Em outro terminal:
-
-```bash
-node bin/agent-deck.mjs install all  # claude codex gemini antigravity
-node bin/agent-deck.mjs doctor       # confere hooks, socket do herdr e servidor
-node bin/agent-deck.mjs demo         # sessões falsas para ver o painel sem configurar nada
-```
-
-Depois do `install`: no **Codex**, abra o codex e rode `/hooks` para revisar e confiar nos hooks. No **Gemini CLI**, se nada aparecer, `/hooks enable-all`.
-
-## 2. Elgato Stream Deck
-
-Requisitos: app Stream Deck 6.5 ou mais novo (Windows 10+ / macOS 12+). Nenhuma dependência extra.
-
-```bash
-node bin/agent-deck.mjs streamdeck install     # copia o plugin para a pasta do app
-```
-
-(No WSL o comando acha a pasta `%APPDATA%\Elgato\StreamDeck\Plugins` do Windows sozinho. Para desenvolver, `--link` cria um symlink.)
-
-Feche e abra o app Stream Deck. Na categoria **Coding Agents** arraste para as teclas:
-
-| Ação | Tecla mostra | Apertar | Segurar (0,6 s) |
+| Action | The key shows | Press | Hold (0.6 s) |
 | --- | --- | --- | --- |
-| **Agent Session** | título, estado + tempo, detalhe, orbe, selo do agente | **abre a janela daquela sessão** | **Allow** se estiver em Approval; escolhe a 1ª opção se for Question; senão marca como lida |
-| **Agents Hub** | N working / none waiting / N done / contagem por agente / pips | abre a janela da primeira sessão esperando você | próxima página |
-| **Allow** / **Deny** | verde/vermelho com o nome da sessão pendente | responde o primeiro pedido de permissão | — |
-| **Next Page** | página atual | avança 8 sessões | — |
+| **Agent Session** | title (scrolls), state + timer, tool / streamed text / question / last line, orb, agent badge | open the session's terminal or editor window | **Allow** the pending permission request; on a finished session, mark it as seen |
+| **Agents Overview** | `6 working`, `none waiting` or `2 waiting` + who, `3 done`, a count per agent, one pip per key | open the first session that is waiting for you | next page |
+| **Allow** / **Deny** | lit with the session and command when a request can be answered | answer the oldest request | — |
+| **Next Page** | page and session count | next page of sessions | back to page 1 |
 
-Um layout comum num Stream Deck de 15 teclas: 8 × *Agent Session* (em **Auto** elas pegam os slots 1–8 pela posição da tecla), 1 × *Agents Hub*, *Allow*, *Deny*, *Next Page*. Em *Property Inspector* dá para fixar o slot de cada tecla e informar o servidor e o token quando o servidor não está na mesma máquina (ou está no WSL e o Stream Deck no Windows: use `http://127.0.0.1:7777` e cole o token de `agent-deck token`). Sem nada configurado, o plugin lê `~/.agent-deck/config.json`.
+Put as many *Agent Session* keys as you like. In *Automatic* mode they fill by position (left to right, top to bottom); a key can also be pinned to "the 3rd session" or to one agent only. Sessions are ordered like the reference keypad: **waiting for you → working → just finished → done → idle**, re-sorted every few seconds and frozen for a moment after you press a key, so nothing moves under your finger.
 
-### O que "abrir a janela" faz em cada sistema
+### States
 
-| Sistema | Como acha a janela | Observações |
+| State | When | Orb |
 | --- | --- | --- |
-| Windows | sobe a árvore de processos a partir do PID do agente até achar uma janela (Windows Terminal, VS Code, cmd…) e chama `SetForegroundWindow`; se não achar, procura janela cujo título contenha o prompt, o projeto ou o nome do agente | funciona com Claude Code, Codex e Gemini rodando no PowerShell/cmd/Windows Terminal/VS Code |
-| WSL | PID do WSL não enxerga janelas; usa a busca por título via `powershell.exe` (o Windows Terminal mostra o título que o Claude Code define) | se quiser exatidão, use `openCommand` (abaixo) |
-| macOS | `tty` do agente → aba exata no **Terminal.app** ou **iTerm2**; senão `System Events` traz para frente o app ancestral (VS Code, Warp…) | pode pedir permissão de Automação/Acessibilidade na primeira vez |
-| Linux (X11) | `xdotool search --pid` na árvore de processos, depois por título | instale `xdotool`; Wayland precisa de `openCommand` |
-| herdr | `herdr agent focus <pane>` | foca o pane exato |
-| adapters Orbtile | `openURL` da sessão + evento `tap` | |
+| Thinking | prompt sent, model working | agent colour, breathing |
+| Tool | a tool runs: `Bash  npm test`, `Edit  index.ts`… | agent colour |
+| Writing | the answer is streaming (Claude Code shows the words live) | agent colour, quicker |
+| Approval | a tool needs your permission | alert colour, pulsing border |
+| Question | the agent asked you something | alert colour, pulsing border |
+| Done | finished; shows the last line | pale, still, white dot until seen |
+| Idle | waiting for a prompt | agent colour, slow breath |
+| Error | API error, rate limit… | red |
+| Compacting | summarising a long context | soft |
+| Offline | stopped reporting (hidden by default) | grey |
 
-Para forçar um comando próprio (por exemplo abrir o Juspilot/OpenBot, o VS Code na pasta, ou um `wt focus-tab`):
+Colours: Claude Code amber/orange, Codex blue/violet, Antigravity teal/pink, Gemini violet/pink, all configurable.
 
-```json
-{ "openCommand": "code --reuse-window \"{cwd}\"" }
+## Install
+
+1. Install the plugin: double-click `com.gabrielvaz.coding-agents.streamDeckPlugin` from the [latest release](https://github.com/gabrielvaz/stream-deck-coding-agents/releases) (or get it from the Elgato Marketplace once published). Requires Stream Deck 7.1 or later on Windows 10+ or macOS 12+.
+2. Drag **Agents Overview** and a few **Agent Session** keys onto your Stream Deck (from the *Coding Agents* category).
+3. Select any of those keys. In its settings, press **Connect** next to each agent you use.
+4. Start a new agent session. Done.
+
+Agent notes:
+
+- **Claude Code** (2.1.214 or later): works right away. Its permission prompt still appears in the terminal; answer there or on the deck, whichever comes first.
+- **Codex**: Codex asks you to trust new hooks once. Open Codex, run `/hooks` and trust the *Coding Agents* entries.
+- **Antigravity CLI**: hooks go to `~/.gemini/config/hooks.json`. The plugin also sets agy's window-title command (only if you have none) because that is where agy reports a pending confirmation; the title then shows the conversation name, which also helps the key find the right terminal tab.
+- **Gemini CLI**: status only; Gemini hooks cannot answer permission prompts, so press the key to jump to the window.
+- **WSL** (Windows): agents inside a running WSL distro get their own *Connect* rows, e.g. *Claude Code · WSL · Ubuntu*.
+
+### What "open the window" does
+
+| | How the plugin finds the window |
+| --- | --- |
+| Windows | walks the agent's process tree to the window that hosts it (Windows Terminal, including the matching tab; VS Code; Cursor; classic console), using the console the agent is attached to when the terminal is not its parent. Falls back to a window whose title mentions the session. |
+| macOS | the exact Terminal.app or iTerm2 tab (matched by tty), otherwise the app that hosts the agent (VS Code, Cursor, Warp, Ghostty, WezTerm…) and its window for the project. macOS asks once to allow Stream Deck to control Terminal / System Events. |
+| Any | your own command per agent in *Advanced*, e.g. `code "{cwd}"`. Placeholders: `{cwd} {project} {title} {pid} {sessionId} {agent}`. |
+
+### Approving from the deck
+
+Claude Code and Codex send a `PermissionRequest` hook before they ask. The plugin holds that request open and shows it on the key. **Hold** the key (a green bar fills) or press **Allow** / **Deny**. The decision goes back through the hook. Claude Code shows its own prompt in the meantime, so the terminal and the deck race and the first answer wins. For Codex the deck waits for the time set in *Wait for a key* (25 s by default), and then Codex asks in the terminal. A timeout never decides anything. A short press on the key opens the window and hands the question back to the terminal immediately.
+
+## Settings
+
+All in the key's settings (shared by every key):
+
+- **Behavior:** hold to allow, how long Codex waits for a key, when finished sessions turn idle and when idle ones disappear, whether to keep sessions that stopped reporting, Claude Code live text.
+- **Look:** animation (smooth, low or off), title style (*project – topic*, topic or folder), text size (automatic: large on 72 px keys), working and alert colour per agent.
+- **Advanced:** demo mode (fake sessions, nothing to install), local port, open command per agent.
+
+## How it works
+
+```
+Claude Code ─┐                                    ┌─────────────────────────────┐
+Codex       ─┤  hook.mjs (Stream Deck's Node.js)  │ Coding Agents plugin        │
+Antigravity ─┼──────────── POST 127.0.0.1 ───────▶│  session store → key tiles  │──▶ Stream Deck keys
+Gemini CLI  ─┘      ◀── decision / title ─────────│  window focus (PS / AS)     │
+                                                   └─────────────────────────────┘
 ```
 
-ou por agente: `"agents": { "codex": { "openCommand": "wt -w 0 nt -d \"{cwd}\"" } }`. Placeholders: `{cwd} {project} {title} {pid} {sessionId} {agent}`.
+1. At start the plugin listens on `127.0.0.1:47821` (or the next free port) and writes `~/.coding-agents-deck/` with `hook.mjs`, a small launcher, and `endpoint.json` (port + random token, readable only by you).
+2. *Connect* adds hook entries to the agent's settings, all tagged with `.coding-agents-deck`:
 
-## 3. Navegador e Steam Deck
+   | Agent | File | Runs |
+   | --- | --- | --- |
+   | Claude Code | `~/.claude/settings.json` | Stream Deck's node + `hook.mjs` (exec form, no shell); observation hooks are `async` |
+   | Codex | `~/.codex/hooks.json` | the launcher (`hook` / `hook.cmd`, a stable path so Codex's trust survives updates) |
+   | Antigravity CLI | `~/.gemini/config/hooks.json` + `title` in `~/.gemini/antigravity-cli/settings.json` | the launcher (`cmd /c`-safe path on Windows) |
+   | Gemini CLI | `~/.gemini/settings.json` | the launcher |
+   | WSL | the same files inside the distro | `/bin/sh` launcher → Stream Deck's `node.exe` through WSL interop |
 
-`agent-deck serve` imprime a URL já com o token (`http://IP:7777/#k=…`). Abra em qualquer navegador para ter o painel 3×3 da captura acima (touch, teclado e gamepad).
+3. Each event becomes a state change. If Stream Deck is not running, the hook answers neutrally and exits in milliseconds, so your agent never waits.
 
-No **Steam Deck** (Desktop Mode → Konsole):
+### Local API
+
+For your own scripts (token from `~/.coding-agents-deck/endpoint.json`):
 
 ```bash
-bash steamdeck/install-on-deck.sh "http://192.168.1.20:7777/#k=SEU_TOKEN"
+curl -s -X POST "http://127.0.0.1:47821/api/v1/sessions" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"id":"deploy-1","title":"Deploy web","activity":"tool","toolLabel":"Deploy  web","ttlSeconds":300}'
 ```
 
-O script instala o Chromium (flatpak) se preciso, cria o launcher kiosk 1280×800 e explica como adicioná-lo como jogo não-Steam. Controles: D-pad/analógico move, **A** abre, **segurar A** aprova, **B** nega/volta, **X** marca lido, **Y** abre a janela no PC, **LB/RB** páginas.
+`activity` is one of `thinking tool writing approval question done error idle offline`. `GET /api/v1/state` returns every session.
 
-## Aprovar de longe, por agente
-
-| Agente | Estado | Allow / Deny | Como |
-| --- | --- | --- | --- |
-| Claude Code | ✔ | ✔ | o hook `PermissionRequest` fica aberto até `approvalHoldSeconds` (20 s) **só enquanto um painel/plugin está conectado**; sua decisão volta pelo hook, senão o prompt do terminal aparece normalmente |
-| Codex CLI | ✔ | ✔ | mesmo mecanismo via `~/.codex/hooks.json` |
-| Gemini CLI | ✔ | — | `Notification: ToolPermission` é só observabilidade; aperte a tecla para abrir a janela e responder |
-| Antigravity CLI | ✔ | — | hooks em `~/.gemini/config/hooks.json`; `PreToolUse` responde `{"decision":"allow"}` (delega à política do agy) |
-| herdr | ✔ | ✔ | status pelo socket; Allow/Deny = `herdr agent send-keys` (`enter`/`esc`, configurável) |
-| Adapters | ✔ | ✔ | fila `POST /a/v1/adapters/{id}/events` (protocolo v1.1) |
-
-A decisão nunca é executada pelo painel: ela é entregue ao hook que está esperando ou enviada como tecla ao terminal. O diálogo do agente continua sendo a autoridade.
-
-## Configuração (`~/.agent-deck/config.json`)
-
-```json
-{
-  "port": 7777,
-  "host": "0.0.0.0",
-  "token": "…",
-  "requireToken": true,
-  "approvalHoldSeconds": 20,
-  "doneToIdleSeconds": 90,
-  "idleKeepMinutes": 120,
-  "openCommand": null,
-  "herdr": { "enabled": true, "socketPath": null, "hideAgents": "auto", "keys": { "allow": ["enter"], "deny": ["esc"] } },
-  "agents": { "claude": { "name": "Claude", "color": "#F3B257", "alarm": "#E2714B", "openCommand": null } },
-  "installed": ["claude", "codex"]
-}
-```
-
-- `herdr.hideAgents: "auto"` esconde no herdr os agentes que já têm hook (evita tile duplicado).
-- `requireToken: false` ou `serve --no-token` em rede confiável.
-- Env: `AGENT_DECK_HOME`, `AGENT_DECK_PORT`, `AGENT_DECK_HOST`, `AGENT_DECK_TOKEN`, `AGENT_DECK_SERVER` (host que o hook chama), `AGENT_DECK_HOST_ALIAS` (sessão remota, aparece com 🌐).
-- Hooks por projeto: `agent-deck install claude --project ./repo`. `agent-deck uninstall …` remove só as entradas do Agent Deck.
-
-### Servidor no WSL, Stream Deck no Windows
-
-Rode `serve` e `install` dentro do WSL (onde os agentes rodam). No plugin, informe `http://127.0.0.1:7777` e o token (`agent-deck token` no WSL). O botão "abrir janela" usa `powershell.exe` por título; para precisão total, configure `openCommand` com `wt.exe` ou `code`.
-
-## O que o instalador escreve
-
-| Agente | Arquivo | Eventos |
-| --- | --- | --- |
-| Claude Code | `~/.claude/settings.json` → `hooks` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `MessageDisplay` (hook `http`), `SubagentStart/Stop`, `Stop`, `StopFailure`, `PreCompact`, `PostCompact`, `SessionEnd` (os de observação com `async: true`) |
-| Codex CLI | `~/.codex/hooks.json` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreCompact`, `PostCompact`, `SubagentStart/Stop`, `Stop`, `Interrupt`, `SessionEnd` |
-| Gemini CLI | `~/.gemini/settings.json` → `hooks` (+ `tools.enableHooks`) | `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, `AfterTool`, `Notification`, `PreCompress` |
-| Antigravity CLI | `~/.gemini/config/hooks.json` → `"agent-deck"` | `SessionStart`, `PreInvocation`, `PostInvocation`, `PreToolUse`, `PostToolUse`, `Stop` (nome do evento vai como argumento) |
-
-Todos chamam `hooks/agent-deck-hook.mjs <agente> [evento]`: lê o JSON do stdin, faz `POST http://127.0.0.1:7777/api/v1/hook/<agente>?pid=<pid do agente>` e devolve a resposta. Servidor desligado = resposta neutra e exit 0; o agente nunca trava.
-
-## API
-
-Token obrigatório (`?k=`, `Authorization: Bearer` ou `X-Agent-Deck-Token`), exceto `/api/v1/hook/*` vindo de loopback.
-
-| Método | Rota | Para quê |
-| --- | --- | --- |
-| `GET` | `/api/v1/state` | snapshot (sessões ordenadas, resumo, paleta) |
-| `GET` | `/api/v1/events` | Server-Sent Events, um snapshot por mudança |
-| `POST` | `/api/v1/hook/:agent?event=&pid=` | entrada dos hooks |
-| `POST` | `/api/v1/sessions/:uid/actions` | `{"action":"focus"|"allow"|"deny"|"dismiss"|"answer"|"read"|"remove"}` |
-| `POST` | `/api/v1/sessions` | API simples: `{"agent":"custom","id":"job-1","title":"Deploy","activity":"tool","toolLabel":"Deploy  web"}` |
-| `*` | `/a/v1/…` | Adapter Protocol v1.1 compatível com [Orbtile](https://github.com/Orbtile/orbtile-adapters) (`PUT /adapters/{id}`, `POST …/sessions/{sid}`, `heartbeat`, `events`, `GET /info` com prova HMAC) |
-
-Descoberta: `~/.agent-deck/adapter-api.json` (`url`, `socketPath`, `basePath`, `token`). Os adapters de referência do Orbtile rodam sem alteração com `ORBTILE_API_FILE=~/.agent-deck/adapter-api.json`.
-
-## Comandos
-
-```
-agent-deck serve [--port N] [--host A] [--no-token] [--no-herdr] [--demo]
-agent-deck demo
-agent-deck install <claude|codex|gemini|antigravity|all> [--project DIR] [--no-live-text]
-agent-deck uninstall <…>
-agent-deck streamdeck install [--link] | uninstall
-agent-deck status · token [--rotate] · url · doctor
-```
-
-## Desenvolvimento
+## Development
 
 ```bash
-npm test                      # scripts/agent-deck-e2e.mjs: servidor real, hooks reais, SSE, aprovação segurada, focus, Adapter API → .build/agent-deck-e2e.json
-npm run demo                  # servidor com sessões falsas
-npm run screenshot            # docs/*.png via Playwright (PLAYWRIGHT_DIR opcional)
-node streamdeck/make-icons.mjs   # regenera os PNGs do plugin
+npm install
+npm run build            # bundles src/ into com.gabrielvaz.coding-agents.sdPlugin/bin/
+npm run link             # links the plugin into Stream Deck (developer mode)
+npm test                 # unit tests + end-to-end tests with a simulated Stream Deck
+npm run validate         # Elgato's validator
+npm run pack             # dist/com.gabrielvaz.coding-agents.streamDeckPlugin
+npm run gallery          # docs/*.png (needs Playwright: PLAYWRIGHT_DIR=…)
 ```
 
+CI: `ci/ci.yml` is a ready GitHub Actions workflow (typecheck, tests, validate, pack; tags `v*` publish the `.streamDeckPlugin` as a release). Move it to `.github/workflows/ci.yml` to turn it on.
+
+The end-to-end tests start the real plugin bundle under `scripts/sim.mjs` (a stand-in for the Stream Deck app that speaks its WebSocket protocol), connect every agent in a throw-away home folder and run the real hook client the way each CLI runs it. Live checks:
+
+- `node scripts/try-claude.mjs`: real Claude Code (`claude -p`, one tiny Haiku call) approved from a simulated key.
+- `node scripts/windows-smoke.mjs` (from WSL): the plugin under Windows Node.js, with Codex through PowerShell, Claude Code in exec form and Antigravity through `cmd /c`, in a profile path with spaces.
+- `node scripts/wsl-claude.mjs` (from WSL): plugin on Windows, real Claude Code in WSL.
+
 ```
-bin/agent-deck.mjs            CLI
-src/server.mjs                HTTP + SSE + hooks + Adapter API
-src/store.mjs                 estado das sessões, tiers, ações, decisões pendentes
-src/focus.mjs                 "abrir a janela": Windows / WSL / macOS / Linux / openCommand
-src/mappers/*.mjs             evento de cada CLI → estado do tile
-src/herdr.mjs                 socket do herdr + ações via CLI
-src/install.mjs               instaladores de hooks
-src/streamdeck.mjs            instalador do plugin
-hooks/agent-deck-hook.mjs     script universal chamado pelos agentes
-streamdeck/com.gabrielvaz.coding-agents.sdPlugin/   plugin Elgato (manifest, bin/plugin.mjs, pi/, imgs/)
-web/                          painel do navegador / Steam Deck (HTML/CSS/JS puro)
-steamdeck/                    instalador kiosk, ícone, service/bat do servidor
+src/plugin.ts           entry: registers the actions, starts the deck
+src/deck.ts             keys, layout, pages, presses, frame loop
+src/actions.ts          Stream Deck actions and property-inspector messages
+src/core/server.ts      local hook endpoint (127.0.0.1 + token)
+src/core/mappers.ts     hook events of each CLI → tile state
+src/core/store.ts       sessions, ordering, pending decisions
+src/core/installer.ts   connect / disconnect / status per agent (native and WSL)
+src/core/focus.ts       open the session window (Windows via powershell.ts, macOS via osascript)
+src/render/tiles.ts     SVG tiles
+src/hook/hook.mjs       the hook client the agents run (no dependencies)
+com.gabrielvaz.coding-agents.sdPlugin/   manifest, icons, property inspector (ui/)
+marketplace/            Marketplace listing, privacy policy, gallery, icon
 ```
 
-O plugin fala o protocolo WebSocket do Stream Deck direto (cliente RFC 6455 mínimo) e desenha cada tecla como SVG, então não há build nem `node_modules`.
+## Em português
 
-## Créditos
+Plugin para o Elgato Stream Deck que mostra suas sessões de Claude Code, Codex, Antigravity CLI e Gemini CLI como teclas vivas, no estilo do keypad da referência: título, estado e cronômetro, ferramenta ou texto sendo escrito, e um orbe que respira. **Apertar abre a janela da sessão; segurar aprova o pedido de permissão.**
 
-- [Orbtile](https://orbtile.com) e seu [Adapter Protocol](https://github.com/Orbtile/orbtile-adapters) (MIT), que inspiraram os estados, a ordenação e a API compatível. [Logitech MX Keypad](https://www.logitech.com/en-us/shop/p/mx-keypad).
-- Hooks: [Claude Code](https://code.claude.com/docs/en/hooks), [Codex CLI](https://developers.openai.com/codex/hooks), [Gemini CLI](https://geminicli.com/docs/hooks/), [Antigravity CLI](https://antigravity.google/docs/hooks), [herdr](https://herdr.dev/tui/docs/socket-api/). [Stream Deck SDK](https://docs.elgato.com/streamdeck/sdk/).
-- Relacionados: [eyes-on-claude-code](https://github.com/joe-re/eyes-on-claude-code), [claude-code-monitor](https://github.com/bruceyxli/claude-code-monitor), [keyvo](https://github.com/qubernetic/keyvo).
+Instalação: dê dois cliques no `.streamDeckPlugin` da [release](https://github.com/gabrielvaz/stream-deck-coding-agents/releases), arraste *Agents Overview* e algumas *Agent Session* para o Stream Deck, abra as configurações de uma tecla e clique em **Connect** em cada agente. No Codex, rode `/hooks` uma vez para confiar nos hooks. Funciona no Windows (inclusive agentes dentro do WSL) e no macOS, sem Node.js instalado, porque usa o runtime do próprio Stream Deck.
+
+## Credits
+
+Design reference: the agent status pad on the Logitech MX Creative Keypad ([Orbtile](https://orbtile.com)). Hook documentation: [Claude Code](https://code.claude.com/docs/en/hooks), [Codex](https://learn.chatgpt.com/docs/hooks), [Antigravity](https://antigravity.google/docs/hooks), [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/reference.md). Built with the [Stream Deck SDK](https://docs.elgato.com/streamdeck/sdk/) and [sdpi-components](https://sdpi-components.dev). Not affiliated with Anthropic, OpenAI, Google, Logitech or Elgato; product names are trademarks of their owners.
 
 MIT © Gabriel Vaz
