@@ -238,11 +238,9 @@ export class Scene3D {
 		well.position.set(0, keysCenterY, BODY.d / 2 - 0.002);
 		tilt.add(well);
 
-		const capMaterial = new THREE.MeshPhysicalMaterial({ color: 0x08090a, roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08 });
-		const glassMaterial = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.035, clearcoat: 1, envMapIntensity: 0.9, depthWrite: false });
+		const capMaterial = new THREE.MeshPhysicalMaterial({ color: 0x070809, roughness: 0.4, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.55 });
 		const capGeometry = new RoundedBoxGeometry(KEY, KEY, 0.06, 3, 0.022);
 		const faceGeometry = new THREE.PlaneGeometry(KEY - 0.018, KEY - 0.018);
-		const glassGeometry = new THREE.PlaneGeometry(KEY - 0.008, KEY - 0.008);
 		const kinds: KeyKind[] = [...Array(11).fill("session"), "hub", "allow", "deny", "page"];
 		for (let i = 0; i < 15; i += 1) {
 			const col = i % 5;
@@ -260,14 +258,22 @@ export class Scene3D {
 			const texture = new THREE.CanvasTexture(canvas);
 			texture.colorSpace = THREE.SRGBColorSpace;
 			texture.anisotropy = 8;
-			const faceMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-			faceMaterial.color.setScalar(1.18); // LCDs glow a little above white for the bloom
+			// the LCD: emits its own image (a little above white, for the bloom) under a glossy cover
+			// that reflects the room only faintly, so blacks stay black
+			const faceMaterial = new THREE.MeshPhysicalMaterial({
+				color: 0x000000,
+				emissive: 0xffffff,
+				emissiveMap: texture,
+				emissiveIntensity: 1.25,
+				roughness: 0.12,
+				metalness: 0,
+				clearcoat: 1,
+				clearcoatRoughness: 0.05,
+				envMapIntensity: 0.18,
+			});
 			const face = new THREE.Mesh(faceGeometry, faceMaterial);
 			face.position.z = 0.0306;
-			const glass = new THREE.Mesh(glassGeometry, glassMaterial);
-			glass.position.z = 0.0312;
-			glass.renderOrder = 2;
-			cap.add(face, glass);
+			cap.add(face);
 			tilt.add(cap);
 			const key: Key = {
 				index: i,
@@ -642,8 +648,8 @@ export class Scene3D {
 			key.press += (target - key.press) * 0.35;
 			key.cap.position.z = key.baseZ - 0.011 * key.press;
 			key.flash *= 0.9;
-			const mat = key.face.material as THREE.MeshBasicMaterial;
-			mat.color.setScalar(1.18 + key.flash * 0.9);
+			const mat = key.face.material as THREE.MeshPhysicalMaterial;
+			mat.emissiveIntensity = 1.25 + key.flash * 0.9;
 		}
 
 		// the light of the waiting keys spills onto the desk
