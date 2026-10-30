@@ -111,8 +111,8 @@
 			.grad { background: linear-gradient(90deg, #ffb238, #ff5f2e 30%, #b36bff 60%, #3f8cff 80%, #1fd8a4); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: sheen 8s linear infinite; }
 			@keyframes sheen { to { background-position: 200% center; } }
 			.stage { position: relative; height: min(78vh, 820px); min-height: 520px; margin: 34px auto 0; max-width: 1400px; border-radius: 28px; overflow: hidden; background: #0a0b0e; box-shadow: 0 0 0 1px var(--line), 0 50px 120px rgba(0, 0, 0, 0.6); }
-			.stage-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; cursor: grab; touch-action: none; }
-			.stage-ui { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 22px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; pointer-events: none; background: linear-gradient(transparent, rgba(10, 11, 14, 0.85)); }
+			.stage-canvas { position: absolute; z-index: 0; inset: 0; width: 100% !important; height: 100% !important; display: block; cursor: grab; touch-action: none; }
+			.stage-ui { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; padding: 18px 22px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; pointer-events: none; background: linear-gradient(transparent, rgba(10, 11, 14, 0.85)); }
 			.stage-ui > * { pointer-events: auto; }
 			.hints { display: flex; gap: 8px; flex-wrap: wrap; }
 			.hints span { font-size: 14px; color: #d4d8de; padding: 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); }
@@ -122,6 +122,16 @@
 			.device.flat { display: none; position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: min(760px, 92%); }
 			body:not(.has-3d) .device.flat { display: inline-grid; }
 			.meta { justify-content: center; margin-top: 22px; }
+			.key-tip, .key-coach { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity 0.18s ease; will-change: transform; z-index: 3; }
+			.key-tip.on, .key-coach.on { opacity: 1; }
+			.key-tip { max-width: 280px; padding: 9px 13px; border-radius: 12px; background: rgba(18, 20, 25, 0.86); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(10px); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
+			.key-tip b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+			.key-tip span { display: block; font-size: 13px; color: #aab0ba; }
+			.key-coach { text-align: center; color: #0b0c0f; background: #ffb238; padding: 6px 12px 7px; border-radius: 12px; box-shadow: 0 0 0 0 rgba(255, 178, 56, 0.6); animation: coach 1.4s ease-out infinite; }
+			.key-coach::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #ffb238; }
+			.key-coach b { display: block; font-size: 14px; }
+			.key-coach span { display: block; font-size: 11px; font-weight: 600; opacity: 0.8; margin-top: -2px; }
+			@keyframes coach { 0% { box-shadow: 0 0 0 0 rgba(255, 178, 56, 0.55); } 100% { box-shadow: 0 0 0 16px rgba(255, 178, 56, 0); } }
 			/* ---------- scroll reveal and cursor light ---------- */
 			.reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s ease, transform 0.7s ease; }
 			.reveal.in { opacity: 1; transform: none; }

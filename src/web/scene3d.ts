@@ -101,6 +101,11 @@ export class Scene3D {
 	private hovered: Key | null = null;
 	private running = true;
 	private homeAzimuth = 0;
+	private intro = { from: new THREE.Vector3(-2.4, 4.6, 7.8), to: new THREE.Vector3(), start: 0 };
+	private tip: HTMLDivElement;
+	private coach: HTMLDivElement;
+	private heldOnce = false;
+	private audio: AudioContext | null = null;
 	theme: ThemeId = "pulse";
 
 	constructor(
@@ -138,6 +143,22 @@ export class Scene3D {
 		this.homeAzimuth = this.controls.getAzimuthalAngle();
 		this.controls.minAzimuthAngle = this.homeAzimuth - 0.85;
 		this.controls.maxAzimuthAngle = this.homeAzimuth + 0.85;
+		// fly in from above on load
+		this.intro.to.copy(this.camera.position);
+		this.camera.position.copy(this.intro.from);
+		this.intro.start = performance.now();
+
+		this.tip = document.createElement("div");
+		this.tip.className = "key-tip";
+		this.coach = document.createElement("div");
+		this.coach.className = "key-coach";
+		this.coach.innerHTML = "<b>Hold me</b><span>to approve</span>";
+		host.append(this.tip, this.coach);
+		try {
+			this.heldOnce = localStorage.getItem("deck-held") === "1";
+		} catch {
+			this.heldOnce = false;
+		}
 
 		this.lights();
 		this.desk();
@@ -375,6 +396,7 @@ export class Scene3D {
 			}
 			// pressing a key must not rotate the scene
 			this.controls.enabled = false;
+			this.click(0.9);
 			el.setPointerCapture(ev.pointerId);
 			key.down = { at: performance.now(), uid: key.session?.uid ?? null, held: false };
 			const down = key.down;
@@ -418,6 +440,30 @@ export class Scene3D {
 		return hit ? (hit.object.userData.key as Key) : null;
 	}
 
+	/** A short mechanical click, synthesised (no audio files). */
+	private click(pitch: number): void {
+		try {
+			this.audio ??= new AudioContext();
+			const ctx = this.audio;
+			const len = Math.floor(ctx.sampleRate * 0.03);
+			const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+			const data = buffer.getChannelData(0);
+			for (let i = 0; i < len; i += 1) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 6);
+			const src = ctx.createBufferSource();
+			src.buffer = buffer;
+			src.playbackRate.value = pitch;
+			const filter = ctx.createBiquadFilter();
+			filter.type = "bandpass";
+			filter.frequency.value = 2400;
+			const gain = ctx.createGain();
+			gain.gain.value = 0.18;
+			src.connect(filter).connect(gain).connect(ctx.destination);
+			src.start();
+		} catch {
+			// audio is a nicety
+		}
+	}
+
 	private flash(key: Key, color: number): void {
 		key.flash = 1;
 		key.flashColor.set(color);
@@ -456,6 +502,13 @@ export class Scene3D {
 		if (key.kind === "session" && uid && this.world.pending(uid)?.kind === "approve") {
 			this.world.decide(uid, true);
 			this.flash(key, 0x2fd27a);
+			this.click(1.4);
+			this.heldOnce = true;
+			try {
+				localStorage.setItem("deck-held", "1");
+			} catch {
+				// private mode
+			}
 			return;
 		}
 		this.press(key, uid);
@@ -471,9 +524,29 @@ export class Scene3D {
 		this.composer.setSize(w, h);
 		this.bloom.resolution.set(w, h);
 		this.camera.aspect = w / h;
-		// keep both devices in frame on narrow screens
-		this.camera.fov = w / h < 1 ? 46 : w / h < 1.4 ? 36 : 30;
+		this.camera.fov = w / h < 1 ? 44 : w / h < 1.4 ? 36 : 30;
 		this.camera.updateProjectionMatrix();
+		this.frameFor(w / h);
+	}
+
+	/** Landscape: side by side. Portrait (phones): step back and look down so both devices fit. */
+	private frameFor(aspect: number): void {
+		const portrait = aspect < 1;
+		const home = portrait ? new THREE.Vector3(-0.1, 4.2, 8.4) : new THREE.Vector3(-0.3, 2.25, 5.5);
+		const target = portrait ? new THREE.Vector3(0.18, 0.6, 0.35) : new THREE.Vector3(0.08, 0.86, 0.1);
+		if (this.intro.to.distanceTo(home) < 1e-3 && this.controls.target.distanceTo(target) < 1e-3) return;
+		this.intro.to.copy(home);
+		this.controls.target.copy(target);
+		if (performance.now() - this.intro.start > 1900) this.camera.position.copy(home);
+		this.controls.minAzimuthAngle = -Infinity;
+		this.controls.maxAzimuthAngle = Infinity;
+		const saved = this.camera.position.clone();
+		this.camera.position.copy(home);
+		this.controls.update();
+		this.homeAzimuth = this.controls.getAzimuthalAngle();
+		this.controls.minAzimuthAngle = this.homeAzimuth - 0.85;
+		this.controls.maxAzimuthAngle = this.homeAzimuth + 0.85;
+		this.camera.position.copy(saved);
 	}
 
 	private drawKeys(now: number): void {
@@ -549,8 +622,15 @@ export class Scene3D {
 		this.deckGlow.color.lerp(new THREE.Color(glowColor), 0.05);
 		this.deckGlow.intensity = waiting ? 0.9 + 0.5 * Math.sin(t / 180) : 0.55;
 
-		// a gentle drift while nobody touches the scene
-		if (t - this.lastInteraction > 6000 && this.controls.enabled) {
+		this.overlays();
+
+		// fly-in, then a gentle drift while nobody touches the scene
+		const k = Math.min(1, (t - this.intro.start) / 1900);
+		if (k < 1) {
+			const e = 1 - Math.pow(1 - k, 3);
+			this.camera.position.lerpVectors(this.intro.from, this.intro.to, e);
+			this.lastInteraction = t;
+		} else if (t - this.lastInteraction > 6000 && this.controls.enabled) {
 			const az = this.homeAzimuth + Math.sin(t / 5200) * 0.16;
 			const delta = az - this.controls.getAzimuthalAngle();
 			const offset = this.camera.position.clone().sub(this.controls.target);
@@ -560,6 +640,41 @@ export class Scene3D {
 		this.controls.update();
 		this.composer.render();
 	};
+
+	/** The tooltip over the hovered key and the "Hold me" coach mark over a key waiting for approval. */
+	private overlays(): void {
+		const rect = this.host.getBoundingClientRect();
+		const place = (el: HTMLElement, key: Key, dy: number) => {
+			const p = this.keyScreenPosition(key.index);
+			el.style.transform = `translate(${(p.x - rect.left).toFixed(0)}px, ${(p.y - rect.top + dy).toFixed(0)}px) translate(-50%, -100%)`;
+		};
+		const hovered = this.hovered;
+		if (hovered && !hovered.down) {
+			const s = hovered.session;
+			let text = "";
+			if (hovered.kind === "session") {
+				if (!s) text = "<b>Empty slot</b><span>A new session takes it</span>";
+				else {
+					const pending = this.world.pending(s.uid);
+					const action = pending?.kind === "approve" ? "Hold to allow · click to open" : pending?.kind === "ask" ? "Click to answer it" : "Click to open its terminal";
+					text = `<b>${s.title.replace(/[<>&]/g, "")}</b><span>${action}</span>`;
+				}
+			} else if (hovered.kind === "hub") text = "<b>Overview</b><span>Click: the session that needs you</span>";
+			else if (hovered.kind === "allow" || hovered.kind === "deny") text = `<b>${hovered.kind === "allow" ? "Allow" : "Deny"}</b><span>Answers the oldest request</span>`;
+			else text = "<b>Next page</b><span>More sessions than keys</span>";
+			if (this.tip.innerHTML !== text) this.tip.innerHTML = text;
+			place(this.tip, hovered, -70);
+			this.tip.classList.add("on");
+		} else this.tip.classList.remove("on");
+
+		// first visit: point at a key that waits for approval
+		const approval = this.heldOnce ? null : this.world.firstApproval();
+		const target = approval ? this.keys.find((k) => k.session?.uid === approval.uid) : null;
+		if (target && !hovered) {
+			place(this.coach, target, -58);
+			this.coach.classList.add("on");
+		} else this.coach.classList.remove("on");
+	}
 
 	/** Screen position of a key's centre (for tests and the hint bubble). */
 	keyScreenPosition(index: number): { x: number; y: number } {

@@ -196,6 +196,64 @@ const ACTORS: Actor[] = [
 			},
 		],
 	},
+	{
+		agent: "codex",
+		id: "web-bugfix",
+		project: "checkout",
+		command: "codex",
+		rest: 8,
+		tasks: [
+			{
+				prompt: "Fix the coupon rounding bug",
+				steps: [
+					{ kind: "tool", tool: "exec_command", arg: "npm test -- coupon", out: ["1 failing: rounds 9.995 to 9.99"], secs: 5 },
+					{ kind: "think", secs: 4 },
+					{ kind: "tool", tool: "apply_patch", arg: "src/money.ts", out: ["M src/money.ts"], secs: 4 },
+					{ kind: "approve", tool: "shell", arg: "npm test", out: ["✓ 212 passed"] },
+					{ kind: "write", text: "Amounts are now rounded half-up in cents, so 9.995 becomes 10.00." },
+					{ kind: "done", secs: 0 },
+				],
+			},
+		],
+	},
+	{
+		agent: "claude",
+		id: "web-tests",
+		project: "design system",
+		command: "claude",
+		rest: 9,
+		tasks: [
+			{
+				prompt: "Add visual tests for the buttons",
+				steps: [
+					{ kind: "think", secs: 4 },
+					{ kind: "tool", tool: "Write", arg: "tests/button.visual.ts", out: ["Created 64 lines"], secs: 5 },
+					{ kind: "tool", tool: "Bash", arg: "npx playwright test button", out: ["12 passed (8.1s)"], secs: 6 },
+					{ kind: "write", text: "Twelve snapshots cover every size and state, in light and dark mode." },
+					{ kind: "done", secs: 0 },
+				],
+			},
+		],
+	},
+	{
+		agent: "antigravity",
+		id: "web-landing",
+		project: "landing page",
+		command: "agy",
+		rest: 7,
+		tasks: [
+			{
+				prompt: "Make the hero section pop",
+				steps: [
+					{ kind: "tool", tool: "view_file", arg: "src/Hero.tsx", out: ["Read 120 lines"], secs: 4 },
+					{ kind: "ask", question: "Gradient headline or a video?", options: ["Gradient", "Video"], pick: 0 },
+					{ kind: "tool", tool: "replace_file_content", arg: "src/Hero.tsx", out: ["Updated 18 lines"], secs: 5 },
+					{ kind: "write", text: "The headline now has an animated gradient and the CTA lifts on hover." },
+					{ kind: "done", secs: 0 },
+				],
+			},
+		],
+	},
 ];
 
 export type Toast = { text: string; tone: "ok" | "bad" | "info"; at: number };

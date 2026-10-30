@@ -242,7 +242,7 @@ export class MacScreen {
 		ctx.font = `400 21px ${MONO}`;
 		const rendered: { text: string; kind: Line["kind"] | "typing" }[] = [];
 		for (const line of w.linesOf(uid)) {
-			const prefix = line.kind === "prompt" ? "> " : line.kind === "tool" || line.kind === "say" ? "● " : line.kind === "out" ? "  ⎿  " : line.kind === "ok" ? "  ✓ " : line.kind === "bad" ? "  ✗ " : "";
+			const prefix = line.kind === "prompt" ? "> " : line.kind === "tool" || line.kind === "say" ? "● " : line.kind === "out" ? "  └  " : line.kind === "ok" ? "  ✓ " : line.kind === "bad" ? "  ✗ " : "";
 			for (const [i, part] of wrap(ctx, line.text, width - 60).entries()) rendered.push({ text: (i === 0 ? prefix : "   ") + part, kind: line.kind });
 		}
 		if (typing) for (const [i, part] of wrap(ctx, typing, width - 60).entries()) rendered.push({ text: (i === 0 ? "● " : "  ") + part, kind: "typing" });
