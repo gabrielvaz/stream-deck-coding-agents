@@ -67,6 +67,23 @@ describe("session store", () => {
 	});
 });
 
+describe("demo mode", () => {
+	it("fills the deck with sessions in many states and clears them again", () => {
+		const store = new lib.SessionStore({ doneToIdleSeconds: 0, hideIdleAfterMinutes: 0, offlineAfterMinutes: 0 });
+		const applied = new Map();
+		const seen = new Set();
+		for (let t = 0; t < 100; t += 2) {
+			lib.runDemo(store, t, applied);
+			for (const s of store.sessions.values()) seen.add(s.activity);
+		}
+		assert.equal(store.sessions.size, lib.DEMO_SCRIPTS.length);
+		for (const state of ["thinking", "tool", "writing", "approval", "question", "done", "error", "idle"]) assert.ok(seen.has(state), state);
+		lib.clearDemo(store);
+		assert.equal(store.sessions.size, 0);
+		store.close();
+	});
+});
+
 describe("tiles", () => {
 	const ctx = { now: Date.now(), palette: lib.AGENTS, animate: true };
 	it("draws plain SVG without filters, masks or clip paths", () => {
