@@ -5,6 +5,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ACTIVITIES } from "./agents.mjs";
 import { ADAPTER_API_FILE, SOCKET_PATH } from "./config.mjs";
+import { openSessionWindow } from "./focus.mjs";
 import { eventNameOf, MAPPERS } from "./mappers/index.mjs";
 import { isLoopback, randomToken, readJsonBody, sendJson } from "./util.mjs";
 
@@ -77,7 +78,7 @@ export function createDeckServer(config, store, options = {}) {
       if (actionMatch && req.method === "POST") {
         const body = await readJsonBody(req);
         const uid = decodeURIComponent(actionMatch[1]);
-        const result = await store.handleAction(uid, body.action, body, herdr);
+        const result = await store.handleAction(uid, body.action, body, herdr, openSessionWindow);
         return sendJson(res, result.ok ? 200 : 409, result);
       }
       const sessionMatch = path.match(/^\/api\/v1\/sessions\/([^/]+)$/);
@@ -151,6 +152,8 @@ export function createDeckServer(config, store, options = {}) {
     const mapped = mapper(event, payload);
     if (!mapped) return sendJson(res, 200, {});
     const host = url.searchParams.get("host") ?? "local";
+    const pid = Number(url.searchParams.get("pid"));
+    if (Number.isInteger(pid) && pid > 0 && mapped.patch) mapped.patch.pid = pid;
     if (mapped.remove) {
       const session = store.find(agent, mapped.sessionId, host);
       if (session) store.remove(session.uid);

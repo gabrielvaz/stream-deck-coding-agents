@@ -56,6 +56,7 @@ const responseTimeout = isDecision ? 90_000 : 4_000;
 
 const query = new URLSearchParams();
 if (event) query.set("event", event);
+if (process.ppid) query.set("pid", String(process.ppid)); // the agent process that spawned this hook
 if (process.env.AGENT_DECK_HOST_ALIAS) query.set("host", process.env.AGENT_DECK_HOST_ALIAS);
 const body = JSON.stringify(payload);
 

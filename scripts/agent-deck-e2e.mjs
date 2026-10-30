@@ -21,6 +21,13 @@ process.env.AGENT_DECK_HOME = HOME;
 process.env.AGENT_DECK_PORT = String(PORT);
 const env = { ...process.env };
 
+// the server reads its config once at start: pre-seed the focus command used by the focus check
+const marker = join(HOME, "focused.txt");
+writeFileSync(
+  join(HOME, "config.json"),
+  JSON.stringify({ openCommand: process.platform === "win32" ? `cmd /c echo {project} {sessionId}> "${marker}"` : `printf '%s' "{project} {sessionId}" > "${marker}"` }),
+);
+
 const results = [];
 function check(name, ok, detail) {
   results.push({ name, ok: Boolean(ok), detail });
@@ -219,6 +226,16 @@ try {
   await runHook("claude", { session_id: "s1", cwd: "/x", hook_event_name: "SessionEnd", reason: "other" });
   state = (await api("/api/v1/state", {}, token)).body;
   check("SessionEnd removes the tile", !session(state, "s1"));
+
+  // focus action: the openCommand template runs with the session fields
+  await runHook("claude", { session_id: "f1", cwd: "/home/me/focus-app", hook_event_name: "SessionStart" });
+  state = (await api("/api/v1/state", {}, token)).body;
+  check("hook records the agent pid", Number.isInteger(session(state, "f1")?.pid) && session(state, "f1").pid > 0, String(session(state, "f1")?.pid));
+  await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+  const focus = await api(`/api/v1/sessions/${encodeURIComponent(session(state, "f1").uid)}/actions`, { method: "POST", body: JSON.stringify({ action: "focus" }) }, token);
+  const { readFileSync, existsSync } = await import("node:fs");
+  check("focus runs openCommand with session fields", focus.body.ok && existsSync(marker) && readFileSync(marker, "utf8").trim() === "focus-app f1", JSON.stringify(focus.body));
+  await runHook("claude", { session_id: "f1", cwd: "/home/me/focus-app", hook_event_name: "SessionEnd" });
 
   // Codex, Gemini, Antigravity
   await runHook("codex", { session_id: "t1", cwd: "/w/app", hook_event_name: "SessionStart", model: "gpt-5.5-codex" });

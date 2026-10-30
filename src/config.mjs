@@ -27,6 +27,7 @@ export const DEFAULTS = Object.freeze({
     },
   },
   agents: {},
+  openCommand: null,
   installed: [],
 });
 

@@ -315,7 +315,7 @@ export class DeckStore extends EventEmitter {
    * Deck actions: allow | deny | dismiss | read | answer | focus | remove.
    * Returns { ok, via, reason }.
    */
-  async handleAction(uid, action, payload = {}, herdr = null) {
+  async handleAction(uid, action, payload = {}, herdr = null, openWindow = null) {
     const session = this.sessions.get(uid);
     if (!session) return { ok: false, reason: "not_found" };
     switch (action) {
@@ -377,15 +377,19 @@ export class DeckStore extends EventEmitter {
       }
       case "focus": {
         session.seen = true;
+        this.scheduleEmit();
         if (session.source === "herdr" && herdr) {
           const result = await herdr.focus(session.target);
-          return result.ok ? { ok: true, via: "herdr" } : { ok: false, reason: result.reason };
+          if (result.ok) return { ok: true, via: "herdr" };
         }
         if (this.adapters.has(session.adapterId)) {
           this.queueAdapterEvent(session.adapterId, { type: "tap", sessionId: session.sessionId, host: session.host });
-          return { ok: true, via: "adapter" };
+          if (!session.openURL && !openWindow) return { ok: true, via: "adapter" };
         }
-        this.scheduleEmit();
+        if (openWindow) {
+          const result = await openWindow(session, this.config);
+          return result.ok ? { ok: true, via: result.via } : { ok: false, reason: result.reason };
+        }
         return { ok: false, reason: "no_channel" };
       }
       default:
@@ -481,6 +485,8 @@ export class DeckStore extends EventEmitter {
       question: session.question,
       subagentCount: session.subagentCount,
       seen: session.seen,
+      pid: session.pid,
+      cwd: session.cwd,
       canAnswer: this.canAnswer(session),
       tier: tierOf(session, at),
     };
