@@ -63,6 +63,17 @@
 			list.append(row);
 		}
 
+		if (status.herdr) {
+			const h = status.herdr;
+			const state = h.running ? `herdr is running · ${h.agents} agent${h.agents === 1 ? "" : "s"}` : h.found ? "herdr found, not running" : "herdr not found on this computer";
+			$("herdr-state").textContent = `${state}.`;
+		}
+		if (status.remote) {
+			$("remote-tunnel").textContent = status.remote.tunnel;
+			$("remote-setup").textContent = status.remote.setup;
+			$("remote-remove").textContent = status.remote.remove;
+		}
+
 		if (status.message) {
 			busy = false;
 			const msg = $("msg");
@@ -72,6 +83,21 @@
 	}
 
 	client.sendToPropertyInspector.subscribe((ev) => render(ev.payload));
+
+	// copy buttons for the remote commands (the inspector has no clipboard API: select + execCommand)
+	for (const button of document.querySelectorAll("[data-copy]")) {
+		button.addEventListener("click", () => {
+			const text = $(button.dataset.copy).textContent;
+			const area = document.createElement("textarea");
+			area.value = text;
+			document.body.append(area);
+			area.select();
+			document.execCommand("copy");
+			area.remove();
+			button.textContent = "Copied";
+			setTimeout(() => (button.textContent = "Copy"), 1500);
+		});
+	}
 
 	client.getConnectionInfo().then((info) => {
 		const action = info?.actionInfo?.action || "";

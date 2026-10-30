@@ -1,5 +1,5 @@
 import { AGENTS, type AgentId, type AgentInfo, HOOK_AGENTS } from "./core/agents";
-import { safeColor } from "./render/tiles";
+import { isTheme, safeColor, type ThemeId } from "./render/tiles";
 
 export const VERSION = "1.0.0";
 export const DEFAULT_PORT = 47821;
@@ -10,6 +10,7 @@ export type GlobalSettings = {
 	approvalWait?: number | string;
 	holdToApprove?: boolean;
 	animation?: "smooth" | "low" | "off";
+	theme?: ThemeId;
 	titleMode?: "both" | "topic" | "project";
 	textSize?: "auto" | "normal" | "large";
 	liveText?: boolean;
@@ -17,6 +18,9 @@ export type GlobalSettings = {
 	hideIdleAfter?: number | string;
 	showOffline?: boolean;
 	demo?: boolean;
+	herdr?: boolean;
+	claudeList?: "auto" | "on" | "off";
+	remoteToken?: string;
 	[key: string]: unknown;
 };
 
@@ -31,6 +35,7 @@ export type Resolved = {
 	approvalWait: number;
 	holdToApprove: boolean;
 	fps: number;
+	theme: ThemeId;
 	titleMode: "both" | "topic" | "project";
 	textSize: "auto" | "normal" | "large";
 	liveText: boolean;
@@ -38,6 +43,8 @@ export type Resolved = {
 	hideIdleAfter: number;
 	showOffline: boolean;
 	demo: boolean;
+	herdr: boolean;
+	claudeList: "auto" | "on" | "off";
 	palette: Record<AgentId, AgentInfo>;
 	openCommand: Partial<Record<AgentId, string>>;
 };
@@ -58,12 +65,14 @@ export function resolveSettings(g: GlobalSettings): Resolved {
 		const cmd = g[`${id}Open`];
 		if (typeof cmd === "string" && cmd.trim()) openCommand[id] = cmd.trim();
 	}
-	const fps = g.animation === "off" ? 0 : g.animation === "low" ? 4 : 10;
+	// keys always move while an agent works: "low" (and the old "off") only lowers the frame rate
+	const fps = g.animation === "low" || g.animation === "off" ? 4 : 10;
 	return {
 		port: num(g.port, DEFAULT_PORT, 1024, 65000),
 		approvalWait: num(g.approvalWait, 25, 0, 120),
 		holdToApprove: g.holdToApprove !== false,
 		fps,
+		theme: isTheme(g.theme) ? g.theme : "pulse",
 		titleMode: g.titleMode === "topic" || g.titleMode === "project" ? g.titleMode : "both",
 		textSize: g.textSize === "normal" || g.textSize === "large" ? g.textSize : "auto",
 		liveText: g.liveText !== false,
@@ -71,6 +80,8 @@ export function resolveSettings(g: GlobalSettings): Resolved {
 		hideIdleAfter: num(g.hideIdleAfter, 120, 0, 10080),
 		showOffline: g.showOffline === true,
 		demo: g.demo === true,
+		herdr: g.herdr !== false,
+		claudeList: g.claudeList === "on" || g.claudeList === "off" ? g.claudeList : "auto",
 		palette,
 		openCommand,
 	};

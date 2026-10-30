@@ -34,7 +34,15 @@ export type Session = {
 	pids: number[];
 	/** Set for sessions pushed through the generic API: they go offline when not refreshed. */
 	ttlSeconds: number | null;
+	/** Where the session comes from: our hooks, herdr, `claude agents`, or the local API. */
+	source: SessionSource;
+	/** herdr pane hosting the session (from HERDR_PANE_ID or herdr itself). */
+	herdrPane: string;
+	/** A display name when the agent has no entry of its own (herdr kinds we do not know). */
+	agentName: string;
 };
+
+export type SessionSource = "hook" | "herdr" | "claude-list" | "api";
 
 /** What a mapper wants to change. `undefined` keeps the current value. */
 export type SessionPatch = Partial<{
@@ -57,6 +65,9 @@ export type SessionPatch = Partial<{
 	pids: number[];
 	ttlSeconds: number | null;
 	restoreAfterCompact: boolean;
+	source: SessionSource;
+	herdrPane: string;
+	agentName: string;
 }>;
 
 export type Decision = { behavior: "allow" | "deny" } | null;
@@ -154,6 +165,9 @@ export class SessionStore extends EventEmitter {
 				pid: null,
 				pids: [],
 				ttlSeconds: null,
+				source: patch.source ?? "hook",
+				herdrPane: "",
+				agentName: "",
 			};
 			this.sessions.set(uid, session);
 			this.order.push(uid);
@@ -185,6 +199,9 @@ export class SessionStore extends EventEmitter {
 		if (patch.pid) s.pid = patch.pid;
 		if (patch.pids && patch.pids.length > 0) s.pids = patch.pids.slice(0, 16);
 		if (patch.ttlSeconds !== undefined) s.ttlSeconds = patch.ttlSeconds;
+		if (patch.source) s.source = patch.source;
+		if (patch.herdrPane) s.herdrPane = patch.herdrPane;
+		if (patch.agentName) s.agentName = clip(patch.agentName, 24);
 		if (!s.title) s.title = s.project || s.sessionId.slice(0, 12);
 		this.scheduleEmit();
 		return s;

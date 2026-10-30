@@ -7,6 +7,7 @@
  *   POST /hook/:agent?event=&ppid=&cpid= hook events → tile updates; PermissionRequest waits for a key
  *   GET  /api/v1/state                   sessions as JSON
  *   POST /api/v1/sessions                push a session from any script: {id, title, activity, detail…}
+ *   GET  /remote/setup.sh?k=             setup script for agents on an SSH-tunnelled machine (remote.ts)
  */
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -14,16 +15,21 @@ import { type Activity, ACTIVITIES, type AgentId, isAgentId } from "./agents";
 import type { WindowFocuser } from "./focus";
 import { eventName, type Mapped, MAPPERS, neutralReply } from "./mappers";
 import { type SessionPatch, SessionStore } from "./store";
+import { remoteSetupScript } from "./remote";
 import { clip } from "./util";
 
 export type ServerOptions = {
 	token: string;
+	/** A second, long-lived token for remote machines (kept in the plugin settings). */
+	remoteToken: () => string;
 	/** Seconds a permission request waits for a key (per agent). */
 	approvalWaitSeconds: (agent: AgentId) => number;
 	/** True while at least one of our keys is on a Stream Deck: only then is holding worth it. */
 	deckVisible: () => boolean;
 	log: (msg: string) => void;
 	onHook?: (agent: AgentId, event: string) => void;
+	/** herdr tells its agents where its binary is (HERDR_BIN_PATH). */
+	onHerdrBinary?: (path: string) => void;
 };
 
 const CHAIN_EVENTS = new Set(["SessionStart", "UserPromptSubmit", "PreInvocation", "BeforeAgent", "Title"]);
@@ -87,10 +93,11 @@ export class HookServer {
 
 	private authorized(req: IncomingMessage, url: URL): boolean {
 		const header = req.headers.authorization ?? "";
-		const given = header.startsWith("Bearer ") ? header.slice(7) : (url.searchParams.get("k") ?? "");
-		const a = Buffer.from(given);
-		const b = Buffer.from(this.options.token);
-		return a.length === b.length && timingSafeEqual(a, b);
+		const given = Buffer.from(header.startsWith("Bearer ") ? header.slice(7) : (url.searchParams.get("k") ?? ""));
+		return [this.options.token, this.options.remoteToken()].some((token) => {
+			const want = Buffer.from(token);
+			return token.length > 0 && want.length === given.length && timingSafeEqual(want, given);
+		});
 	}
 
 	private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -104,6 +111,12 @@ export class HookServer {
 		if (req.method === "POST" && hook) {
 			const body = await readJson(req);
 			return this.onHook(hook[1], url, body, res);
+		}
+		if (req.method === "GET" && url.pathname === "/remote/setup.sh") {
+			const script = remoteSetupScript(this.port, this.options.remoteToken(), url.searchParams.get("remove") === "1");
+			res.writeHead(200, { "Content-Type": "text/x-shellscript; charset=utf-8", "Content-Length": Buffer.byteLength(script) });
+			res.end(script);
+			return;
 		}
 		if (req.method === "GET" && url.pathname === "/api/v1/state") {
 			return send(res, 200, { sessions: [...this.store.sessions.values()], summary: this.store.summary() });
@@ -147,6 +160,13 @@ export class HookServer {
 		const cpid = Number(url.searchParams.get("cpid") ?? 0);
 		const ppid = Number(url.searchParams.get("ppid") ?? 0);
 		if (cpid > 1) patch.pid = cpid;
+		// a remote machine (SSH tunnel): name the host so its sessions are easy to tell apart
+		const host = clip(url.searchParams.get("host") ?? "", 24);
+		if (host) patch.project = `${host}:${patch.project ?? existing?.project ?? ""}`.replace(/:$/, "");
+		const herdrPane = url.searchParams.get("herdr") ?? "";
+		if (herdrPane) patch.herdrPane = herdrPane.slice(0, 64);
+		const herdrBin = url.searchParams.get("herdrBin") ?? "";
+		if (herdrBin) this.options.onHerdrBinary?.(herdrBin);
 		else if (ppid > 1 && (!existing || existing.pids.length === 0 || CHAIN_EVENTS.has(event))) {
 			const chain = await this.focuser.chain(ppid).catch(() => []);
 			if (chain.length > 0) patch.pids = chain.map((p) => p.pid);

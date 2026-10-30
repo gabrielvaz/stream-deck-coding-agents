@@ -12,3 +12,5 @@ export * from "./core/focus";
 export * from "./settings";
 export * from "./deck";
 export * from "./core/powershell";
+export * from "./core/remote";
+export * from "./core/discovery";

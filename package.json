@@ -18,7 +18,7 @@
     "build:lib": "rollup -c rollup.lib.config.mjs",
     "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.gabrielvaz.coding-agents\"",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && npm run build:lib && node --test \"test/*.test.mjs\"",
+    "test": "npm run build && npm run build:lib && node --test --test-concurrency=1 \"test/*.test.mjs\"",
     "validate": "streamdeck validate com.gabrielvaz.coding-agents.sdPlugin",
     "pack": "npm run build && streamdeck pack com.gabrielvaz.coding-agents.sdPlugin --output dist --force",
     "link": "npm run build && streamdeck link com.gabrielvaz.coding-agents.sdPlugin",

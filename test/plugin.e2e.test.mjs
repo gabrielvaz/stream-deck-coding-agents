@@ -60,7 +60,7 @@ describe("Coding Agents plugin", { timeout: 120_000 }, () => {
 		mkdirSync(join(home, ".gemini", "antigravity-cli"), { recursive: true });
 		writeFileSync(join(home, ".gemini", "settings.json"), '{\n  // user comment\n  "theme": "dark",\n}\n');
 
-		sim = await new StreamDeckSim({ env, globalSettings: { approvalWait: 20 } }).start();
+		sim = await new StreamDeckSim({ env, globalSettings: { approvalWait: 20, herdr: false, claudeList: "off" } }).start();
 		for (let i = 0; i < 8; i += 1) keys[`s${i}`] = sim.addKey("session", Math.floor(i / 5), i % 5);
 		keys.hub = sim.addKey("hub", 1, 3);
 		keys.allow = sim.addKey("allow", 1, 4);

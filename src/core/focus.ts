@@ -71,13 +71,35 @@ export class WindowFocuser {
 
 	async focus(session: Session, customCommand?: string): Promise<FocusResult> {
 		if (customCommand?.trim()) return this.custom(customCommand, session);
-		const titles = titleCandidates(session);
+		const extra = (session as Session & { titles?: string[] }).titles ?? [];
+		const titles = [...new Set([...extra, ...titleCandidates(session)])];
 		const pids = [session.pid ?? 0, ...session.pids].filter((p) => p > 1);
 		if (IS_WIN) {
 			const res = await this.powershell().request({ op: "focus", pids, titles }, 6000);
 			return { ok: res.ok === true, via: String(res.via ?? "") };
 		}
 		if (IS_MAC) return this.focusMac(pids, titles);
+		return { ok: false, via: "unsupported platform" };
+	}
+
+	/** Opens a new terminal running `bin args` (Windows Terminal or cmd on Windows, Terminal on macOS). */
+	async openTerminal(bin: string, args: string[], cwd: string): Promise<FocusResult> {
+		if (IS_WIN) {
+			const wt = await run("where", ["wt.exe"], 3000);
+			if (wt.ok && wt.out.trim()) {
+				const res = await run("wt.exe", ["-w", "0", "nt", ...(cwd ? ["-d", cwd] : []), bin, ...args]);
+				if (res.ok) return { ok: true, via: "Windows Terminal" };
+			}
+			const quote = (a: string) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a);
+			const res = await run("cmd.exe", ["/d", "/c", `start "" cmd /k ${[bin, ...args].map(quote).join(" ")}`]);
+			return { ok: res.ok, via: "cmd" };
+		}
+		if (IS_MAC) {
+			const sh = (a: string) => `'${a.replace(/'/g, `'\\''`)}'`;
+			const line = `${cwd ? `cd ${sh(cwd)} && ` : ""}${[bin, ...args].map(sh).join(" ")}`;
+			const res = await run("osascript", ["-e", `tell application "Terminal" to do script "${line.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`, "-e", 'tell application "Terminal" to activate']);
+			return { ok: res.ok, via: "Terminal" };
+		}
 		return { ok: false, via: "unsupported platform" };
 	}
 

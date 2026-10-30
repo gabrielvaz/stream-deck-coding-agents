@@ -132,6 +132,9 @@ async function main() {
 		if (process.env[name]) query.set(key, process.env[name].slice(0, 120));
 	}
 	if (process.env.WSL_DISTRO_NAME) query.set("wsl", process.env.WSL_DISTRO_NAME);
+	// running inside herdr: the pane lets the key switch herdr to this session
+	if (process.env.HERDR_PANE_ID) query.set("herdr", process.env.HERDR_PANE_ID);
+	if (process.env.HERDR_BIN_PATH) query.set("herdrBin", process.env.HERDR_BIN_PATH);
 	const path = `/hook/${encodeURIComponent(agent)}?${query}`;
 	const body = JSON.stringify(payload);
 	const timeoutMs = waits ? 30 * 60_000 : 4000;

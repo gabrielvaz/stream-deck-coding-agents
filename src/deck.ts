@@ -8,8 +8,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentId } from "./core/agents";
 import { clearDemo, runDemo } from "./core/demo";
+import { ClaudeLister, HerdrBridge } from "./core/discovery";
 import { WindowFocuser } from "./core/focus";
 import { type AgentStatus, install, type InstallOptions, listWslDistros, nativeTargets, prepareRuntime, prepareWsl, type Runtime, runtimeFor, status, type Target, uninstall, type WslDistro, wslTargets } from "./core/installer";
+import { remoteCommands } from "./core/remote";
 import { HookServer } from "./core/server";
 import { type Session, SessionStore } from "./core/store";
 import { decisionTile, emptyTile, hubTile, pageTile, type RenderContext, sessionTile, toDataUrl } from "./render/tiles";
@@ -48,6 +50,8 @@ export class Deck {
 	readonly store: SessionStore;
 	readonly focuser: WindowFocuser;
 	readonly server: HookServer;
+	readonly herdr: HerdrBridge;
+	readonly claudeList: ClaudeLister;
 	readonly keys = new Map<string, Key>();
 	settings: Resolved;
 	raw: GlobalSettings = {};
@@ -57,6 +61,9 @@ export class Deck {
 	problem = "";
 	private rt: Runtime;
 	private token = randomBytes(24).toString("base64url");
+	/** Long-lived token for SSH-tunnelled machines; kept in the global settings so it survives restarts. */
+	remoteToken = "";
+	private persist: ((patch: GlobalSettings) => void) | null = null;
 	private timer: NodeJS.Timeout | null = null;
 	private kick: NodeJS.Timeout | null = null;
 	private demoStart = 0;
@@ -72,12 +79,21 @@ export class Deck {
 		this.focuser = new WindowFocuser((m) => log.warn(m));
 		this.server = new HookServer(this.store, this.focuser, {
 			token: this.token,
+			remoteToken: () => this.remoteToken,
 			// Claude Code shows its own prompt while the hook waits (first answer wins), so the deck can
 			// keep the request open until just before the hook's 300 s timeout. Codex waits for hooks
 			// before prompting, so it gets the configurable, shorter wait.
 			approvalWaitSeconds: (agent) => (this.settings.approvalWait === 0 ? 0 : agent === "claude" ? 290 : this.settings.approvalWait),
 			deckVisible: () => [...this.keys.values()].some((k) => k.kind === "session" || k.kind === "allow" || k.kind === "hub"),
 			log: (m) => log.info(m),
+			onHerdrBinary: (path) => this.herdr.useBinary(path),
+		});
+		this.herdr = new HerdrBridge(this.store, () => this.settings.herdr, (m) => log.warn(m));
+		// without Claude Code hooks, `claude agents` still shows every session (status only)
+		this.claudeList = new ClaudeLister(this.store, () => {
+			if (this.settings.claudeList === "off") return false;
+			if (this.settings.claudeList === "on") return true;
+			return !this.statuses.some((s) => s.agent === "claude" && !s.where && s.installed);
 		});
 		this.rt = runtimeFor();
 		this.store.on("change", () => this.requestFrame());
@@ -101,18 +117,32 @@ export class Deck {
 		this.selfHeal();
 		this.restartLoop();
 		this.focuser.warm();
+		this.herdr.start();
+		this.claudeList.start();
 	}
 
 	async stop(): Promise<void> {
 		if (this.timer) clearInterval(this.timer);
+		this.herdr.stop();
+		this.claudeList.stop();
 		this.store.close();
 		this.focuser.dispose();
 		await this.server.close();
 	}
 
+	/** How the deck saves values of its own into the plugin settings (the remote token). */
+	setPersist(persist: (patch: GlobalSettings) => void): void {
+		this.persist = persist;
+	}
+
 	applySettings(global: GlobalSettings): void {
 		const before = this.settings;
 		this.raw = { ...global };
+		if (typeof global.remoteToken === "string" && global.remoteToken.length >= 24) this.remoteToken = global.remoteToken;
+		else if (!this.remoteToken) {
+			this.remoteToken = randomBytes(24).toString("base64url");
+			this.persist?.({ ...global, remoteToken: this.remoteToken });
+		}
 		this.settings = resolveSettings(this.raw);
 		this.store.options.doneToIdleSeconds = this.settings.doneToIdle;
 		this.store.options.hideIdleAfterMinutes = this.settings.hideIdleAfter;
@@ -239,6 +269,9 @@ export class Deck {
 			hookCounts: this.server.hookCounts,
 			agents: this.refreshStatus(),
 			home: this.rt.home,
+			herdr: { found: !!this.herdr.bin, running: this.herdr.available, agents: this.herdr.agents },
+			claudeList: { found: !!this.claudeList.bin, running: this.claudeList.available },
+			remote: this.listening ? remoteCommands(this.server.port, this.remoteToken) : null,
 		};
 	}
 
@@ -314,8 +347,8 @@ export class Deck {
 			}
 			case "allow":
 			case "deny": {
-				const target = this.store.firstAnswerable();
-				if (target && this.store.decide(target.uid, key.kind)) void key.handle.showOk();
+				const target = this.answerable();
+				if (target && (await this.answer(target, key.kind))) void key.handle.showOk();
 				else void key.handle.showAlert();
 				return;
 			}
@@ -330,9 +363,8 @@ export class Deck {
 			case "session": {
 				const session = uid ? this.store.get(uid) : null;
 				if (!session) return void key.handle.showAlert();
-				if (session.activity === "approval" && this.settings.holdToApprove && this.store.hasPending(session.uid)) {
-					this.store.decide(session.uid, "allow");
-					void key.handle.showOk();
+				if (session.activity === "approval" && this.settings.holdToApprove && this.canAnswer(session)) {
+					void ((await this.answer(session, "allow")) ? key.handle.showOk() : key.handle.showAlert());
 					return;
 				}
 				if (session.activity === "done" || session.activity === "error" || session.activity === "idle") {
@@ -357,11 +389,47 @@ export class Deck {
 		}
 	}
 
+	/** Can the deck answer this session's prompt? Our hook holds it, or herdr can press the keys. */
+	canAnswer(session: Session): boolean {
+		return this.store.hasPending(session.uid) || (session.source === "herdr" && session.activity === "approval" && !!session.herdrPane);
+	}
+
+	/** The request the Allow / Deny keys act on: the oldest one the deck can answer. */
+	answerable(): Session | null {
+		const viaHook = this.store.firstAnswerable();
+		if (viaHook) return viaHook;
+		let best: Session | null = null;
+		for (const s of this.store.sessions.values()) if (this.canAnswer(s) && (!best || s.activitySince < best.activitySince)) best = s;
+		return best;
+	}
+
+	private async answer(session: Session, behavior: "allow" | "deny"): Promise<boolean> {
+		if (this.store.decide(session.uid, behavior)) return true;
+		if (session.source === "herdr" && session.herdrPane && (await this.herdr.answer(session.herdrPane, behavior === "allow"))) {
+			this.store.markSeen(session.uid);
+			this.store.setActivity(session, behavior === "allow" ? "thinking" : "idle");
+			this.store.scheduleEmit();
+			return true;
+		}
+		return false;
+	}
+
 	/** Bring the session's window forward; a held permission request is released to the terminal. */
 	private async open(key: Key, session: Session): Promise<void> {
 		this.store.markSeen(session.uid);
 		if (session.activity === "approval") this.store.resolvePending(session.uid, null);
-		const res = await this.focuser.focus(session, this.settings.openCommand[session.agent]);
+		const custom = this.settings.openCommand[session.agent];
+		let res: { ok: boolean; via: string };
+		if (session.herdrPane && !custom) {
+			// inside herdr: switch herdr to the pane, then bring the terminal that shows herdr forward
+			const paneOk = await this.herdr.focus(session.herdrPane);
+			const win = await this.focuser.focus({ ...session, titles: ["herdr"] } as Session & { titles: string[] });
+			res = { ok: paneOk || win.ok, via: `herdr pane ${session.herdrPane}${win.ok ? ` + ${win.via}` : ""}` };
+		} else if (session.source === "claude-list" && session.agentName.includes("background") && this.claudeList.bin && !custom) {
+			res = await this.focuser.openTerminal(this.claudeList.bin, this.claudeList.attachArgs(session), session.cwd);
+		} else {
+			res = await this.focuser.focus(session, custom);
+		}
 		this.log.info(`open ${session.agent} "${session.title}": ${res.ok ? "ok" : "failed"} (${res.via})`);
 		if (!res.ok) void key.handle.showAlert();
 	}
@@ -461,12 +529,12 @@ export class Deck {
 		const now = Date.now();
 		if (this.demoStart) runDemo(this.store, (now - this.demoStart) / 1000, this.demoApplied);
 		if (this.keys.size === 0) return;
-		const ctx: RenderContext = { now, palette: this.settings.palette, animate: this.settings.fps > 0 };
+		const ctx: RenderContext = { now, palette: this.settings.palette, animate: this.settings.fps > 0, theme: this.settings.theme };
 		const layout = this.layout();
 		const groups = this.layoutGroups();
 		const { size, pages } = this.pageInfo(groups);
 		const all = this.sessions();
-		const answerable = this.store.firstAnswerable();
+		const answerable = this.answerable();
 		const connected = this.statuses.filter((s) => s.installed).length + (this.demoStart ? 1 : 0);
 
 		for (const key of this.keys.values()) {

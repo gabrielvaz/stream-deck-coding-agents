@@ -13,6 +13,7 @@ const deck = new Deck({
 	error: (msg) => log.error(msg),
 });
 bindDeck(deck);
+deck.setPersist((settings) => void streamDeck.settings.setGlobalSettings(settings as JsonObject).catch(() => {}));
 // status updates found in the background (e.g. WSL distros) reach an open setup page right away
 deck.setInspectorPush((payload) => void streamDeck.ui.sendToPropertyInspector(payload as JsonObject).catch(() => {}));
 
