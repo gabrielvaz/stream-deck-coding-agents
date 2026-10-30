@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0b0c0e" />
+    <title>Agent Deck</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="pill" id="pill"><span class="pill-dot"></span><span id="pill-text">connecting…</span></div>
+      <div class="topbar-right">
+        <span class="agents-legend" id="legend"></span>
+        <span class="clock" id="clock">--:--</span>
+        <button type="button" class="icon-btn" id="settings-btn" title="Settings" aria-label="Settings">⚙</button>
+        <span class="conn" id="conn" title="connection"></span>
+      </div>
+    </header>
+
+    <main class="keypad" id="keypad">
+      <section class="grid" id="grid" aria-label="agent sessions"></section>
+      <nav class="pagebar">
+        <button type="button" class="page-btn" id="prev" aria-label="previous page">‹</button>
+        <span class="page-ind" id="page-ind">1 / 1</span>
+        <button type="button" class="page-btn" id="next" aria-label="next page">›</button>
+        <span class="wordmark">agent deck</span>
+      </nav>
+    </main>
+
+    <div class="overlay hidden" id="focus" role="dialog" aria-modal="true">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="badge big" id="f-badge"></span>
+          <div class="panel-head-text">
+            <div class="panel-agent" id="f-agent"></div>
+            <div class="panel-model" id="f-model"></div>
+          </div>
+          <div class="panel-state"><span id="f-state"></span><span class="timer" id="f-timer"></span></div>
+        </div>
+        <h1 class="panel-title" id="f-title">Session</h1>
+        <div class="panel-detail" id="f-detail"></div>
+        <div class="panel-question hidden" id="f-question"></div>
+        <pre class="panel-live" id="f-live"></pre>
+        <div class="panel-actions" id="f-actions"></div>
+        <div class="panel-note" id="f-note"></div>
+        <div class="hints">
+          <span><b>A</b> select</span><span><b>hold A</b> allow</span><span><b>B</b> back</span><span><b>X</b> mark read</span><span><b>Y</b> open window</span><span><b>LB / RB</b> page</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="settings" role="dialog" aria-modal="true">
+      <div class="panel small">
+        <h2>Settings</h2>
+        <label class="row"><span>Sound on approval / question</span><input type="checkbox" id="s-sound" /></label>
+        <label class="row"><span>Show offline sessions</span><input type="checkbox" id="s-offline" checked /></label>
+        <label class="row"><span>Big tiles (hide top bar)</span><input type="checkbox" id="s-zen" /></label>
+        <label class="row col"><span>Deck token (from <code>agent-deck token</code>)</span><input type="text" id="s-token" autocomplete="off" spellcheck="false" /></label>
+        <div class="row"><span>Server</span><code id="s-server"></code></div>
+        <div class="panel-actions">
+          <button type="button" class="act" id="s-save">Save &amp; reconnect</button>
+          <button type="button" class="act ghost" id="s-close">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast hidden" id="toast"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

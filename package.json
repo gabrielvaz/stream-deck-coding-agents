@@ -1,0 +1,23 @@
+{
+  "name": "stream-deck-coding-agents",
+  "version": "0.1.0",
+  "description": "Elgato Stream Deck plugin + Steam Deck / browser board that shows your Claude Code, Codex, Gemini CLI, Antigravity CLI and herdr sessions as live agent tiles, and opens the right window with one press.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "agent-deck": "./bin/agent-deck.mjs"
+  },
+  "scripts": {
+    "start": "node bin/agent-deck.mjs serve",
+    "demo": "node bin/agent-deck.mjs demo",
+    "test": "node scripts/agent-deck-e2e.mjs",
+    "screenshot": "node docs/screenshot.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gabrielvaz/stream-deck-coding-agents.git"
+  }
+}
