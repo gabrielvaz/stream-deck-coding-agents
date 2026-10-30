@@ -33,6 +33,14 @@ export class StreamDeckSim {
 		await once(this.wss, "listening");
 		const port = this.wss.address().port;
 		this.port = port;
+		if (this.node.endsWith(".exe")) {
+			// WSL forwards new localhost ports to Windows after a moment: wait until Windows can reach it
+			for (let i = 0; i < 40; i += 1) {
+				const probe = spawnSync("curl.exe", ["-s", "-o", "NUL", "-m", "2", "-w", "%{http_code}", `http://127.0.0.1:${port}/`], { encoding: "utf8" });
+				if (/^[1-5]\d\d$/.test(probe.stdout ?? "")) break;
+				await new Promise((r) => setTimeout(r, 250));
+			}
+		}
 		const info = {
 			application: { font: "", language: "en", platform: this.platform, platformVersion: "14.0", version: "7.1.0.21000" },
 			colors: {},
@@ -54,7 +62,10 @@ export class StreamDeckSim {
 		});
 		this.child.stdout.on("data", (d) => (this.logs += d));
 		this.child.stderr.on("data", (d) => (this.logs += d));
-		await connected;
+		await Promise.race([
+			connected,
+			new Promise((_, reject) => setTimeout(() => reject(new Error(`the plugin never connected\n--- plugin output ---\n${this.logs.slice(-3000)}`)), 20_000)),
+		]);
 		await this.waitFor(() => this.registered, 10_000, "plugin registration");
 		this.send({ event: "deviceDidConnect", device: this.device.id, deviceInfo: { name: this.device.name, size: this.device.size, type: this.device.type } });
 		return this;

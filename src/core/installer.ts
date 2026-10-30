@@ -13,7 +13,7 @@
  * On Windows, agents running inside WSL are supported too: their config files are reached through
  * \\wsl.localhost, and a launcher inside the distro calls Stream Deck's node.exe through interop.
  */
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -171,13 +171,19 @@ function writeIfChanged(path: string, content: string, mode?: number): void {
 
 // ------------------------------------------------------------------------------------------------ WSL
 
+function run(cmd: string, args: string[], timeout: number): Promise<Buffer> {
+	return new Promise((resolve, reject) => {
+		execFile(cmd, args, { windowsHide: true, timeout, encoding: "buffer" }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+	});
+}
+
 /** Running WSL distributions with their home folder (Windows only; never boots a stopped distro). */
-export function listWslDistros(node: string): WslDistro[] {
+export async function listWslDistros(node: string): Promise<WslDistro[]> {
 	if (!IS_WIN) return [];
 	let names: string[] = [];
 	try {
-		const raw = execFileSync("wsl.exe", ["--list", "--running", "--quiet"], { windowsHide: true, timeout: 5000 });
-		names = Buffer.from(raw)
+		const raw = await run("wsl.exe", ["--list", "--running", "--quiet"], 5000);
+		names = raw
 			.toString(raw.includes(0) ? "utf16le" : "utf8")
 			.split(/\r?\n/)
 			.map((s) => s.replace(/\0/g, "").trim())
@@ -188,8 +194,8 @@ export function listWslDistros(node: string): WslDistro[] {
 	const out: WslDistro[] = [];
 	for (const name of names) {
 		try {
-			const home = process.env.CODING_AGENTS_DECK_WSL_HOME || wslExec(name, ["sh", "-c", 'printf %s "$HOME"']);
-			const nodeInside = wslExec(name, ["wslpath", "-u", node]);
+			const home = process.env.CODING_AGENTS_DECK_WSL_HOME || (await wslExec(name, ["sh", "-c", 'printf %s "$HOME"']));
+			const nodeInside = await wslExec(name, ["wslpath", "-u", node]);
 			if (!home.startsWith("/") || !nodeInside.startsWith("/")) continue;
 			out.push({ name, home, unc: `\\\\wsl.localhost\\${name}${home.replace(/\//g, "\\")}`, node: nodeInside });
 		} catch {
@@ -199,8 +205,8 @@ export function listWslDistros(node: string): WslDistro[] {
 	return out;
 }
 
-function wslExec(distro: string, args: string[]): string {
-	return execFileSync("wsl.exe", ["-d", distro, "-e", ...args], { encoding: "utf8", windowsHide: true, timeout: 8000 }).trim();
+async function wslExec(distro: string, args: string[]): Promise<string> {
+	return (await run("wsl.exe", ["-d", distro, "-e", ...args], 8000)).toString("utf8").trim();
 }
 
 /** Writes the launcher inside the distro: it forwards to Stream Deck's node.exe through interop. */

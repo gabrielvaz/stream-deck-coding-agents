@@ -143,7 +143,9 @@ export class WindowFocuser {
 		// the app that hosts the agent (VS Code, Cursor, Warp, Ghostty, WezTerm…), raising the
 		// window whose title names the project when the app has several
 		for (const root of pids) {
-			for (const proc of await this.chain(root)) {
+			const chain = await this.chain(root);
+			if (chain.length === 0) continue; // that process already exited (e.g. the hook's shell)
+			for (const proc of chain) {
 				const raised = await osascript(`
 					tell application "System Events"
 						set ps to (every process whose unix id is ${proc.pid} and background only is false)

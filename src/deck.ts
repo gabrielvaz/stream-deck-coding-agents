@@ -64,6 +64,7 @@ export class Deck {
 	private inspectorPush: ((payload: Record<string, unknown>) => void) | null = null;
 	private distros: WslDistro[] = [];
 	private distrosAt = 0;
+	private distrosLoading: Promise<void> | null = null;
 
 	constructor(private readonly log: Logger) {
 		this.settings = resolveSettings({});
@@ -133,11 +134,28 @@ export class Deck {
 
 	/** Agents on this computer, plus (on Windows) agents inside running WSL distros. */
 	targets(): Target[] {
-		if (process.platform === "win32" && Date.now() - this.distrosAt > 30_000) {
-			this.distrosAt = Date.now();
-			this.distros = listWslDistros(this.rt.node);
-		}
+		if (process.platform === "win32" && Date.now() - this.distrosAt > 30_000) void this.loadDistros();
 		return [...nativeTargets(), ...wslTargets(this.distros)];
+	}
+
+	/** Looks for WSL distros in the background (wsl.exe can take a second); refreshes when done. */
+	loadDistros(): Promise<void> {
+		if (this.distrosLoading) return this.distrosLoading;
+		this.distrosAt = Date.now();
+		this.distrosLoading = listWslDistros(this.rt.node)
+			.then((distros) => {
+				const changed = JSON.stringify(distros) !== JSON.stringify(this.distros);
+				this.distros = distros;
+				if (changed) {
+					this.selfHeal();
+					this.inspectorPush?.(this.statusPayload());
+				}
+			})
+			.catch((error) => this.log.warn(`WSL lookup failed: ${(error as Error).message}`))
+			.finally(() => {
+				this.distrosLoading = null;
+			});
+		return this.distrosLoading;
 	}
 
 	refreshStatus(): AgentStatus[] {

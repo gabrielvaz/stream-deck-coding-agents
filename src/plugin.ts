@@ -1,4 +1,5 @@
 import streamDeck from "@elgato/streamdeck";
+import type { JsonObject } from "@elgato/utils";
 import { AllowAction, bindDeck, DenyAction, HubAction, PageAction, SessionAction } from "./actions";
 import { Deck } from "./deck";
 import type { GlobalSettings } from "./settings";
@@ -12,6 +13,8 @@ const deck = new Deck({
 	error: (msg) => log.error(msg),
 });
 bindDeck(deck);
+// status updates found in the background (e.g. WSL distros) reach an open setup page right away
+deck.setInspectorPush((payload) => void streamDeck.ui.sendToPropertyInspector(payload as JsonObject).catch(() => {}));
 
 streamDeck.actions.registerAction(new SessionAction());
 streamDeck.actions.registerAction(new HubAction());
