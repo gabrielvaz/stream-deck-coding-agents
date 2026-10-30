@@ -3,7 +3,7 @@ import terser from "@rollup/plugin-terser";
 import typescript from "@rollup/plugin-typescript";
 import path from "node:path";
 
-/** The landing page's live deck: the plugin's renderer for the browser (docs/assets/deck.js). */
+/** The website: 3D hero, live keys and legend, with the plugin's renderer (docs/assets/site.js). */
 const shims = {
 	name: "node-shims",
 	resolveId(id) {
@@ -14,7 +14,7 @@ const shims = {
 };
 
 export default {
-	input: "src/web/landing.ts",
-	output: { file: "docs/assets/deck.js", format: "es" },
+	input: "src/web/main.ts",
+	output: { file: "docs/assets/site.js", format: "es" },
 	plugins: [shims, typescript({ outDir: "docs/assets", noEmitOnError: false, declaration: false }), nodeResolve({ browser: true }), terser()],
 };

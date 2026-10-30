@@ -102,6 +102,34 @@
 				nav .links { display: none; }
 				.device { gap: 8px; padding: 14px; border-radius: 24px; }
 			}
+
+			/* ---------- hero with the 3D stage ---------- */
+			header.hero { padding: 64px 0 28px; background: radial-gradient(1000px 520px at 70% 60%, rgba(63, 140, 255, 0.14), transparent 70%), radial-gradient(800px 480px at 15% 75%, rgba(255, 178, 56, 0.1), transparent 70%); }
+			.hero-copy { text-align: center; max-width: 900px; }
+			.hero-copy .lead { max-width: 720px; margin-left: auto; margin-right: auto; }
+			.hero-copy .cta { justify-content: center; }
+			.grad { background: linear-gradient(90deg, #ffb238, #ff5f2e 30%, #b36bff 60%, #3f8cff 80%, #1fd8a4); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: sheen 8s linear infinite; }
+			@keyframes sheen { to { background-position: 200% center; } }
+			.stage { position: relative; height: min(78vh, 820px); min-height: 520px; margin: 34px auto 0; max-width: 1400px; border-radius: 28px; overflow: hidden; background: #0a0b0e; box-shadow: 0 0 0 1px var(--line), 0 50px 120px rgba(0, 0, 0, 0.6); }
+			.stage-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; cursor: grab; touch-action: none; }
+			.stage-ui { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 22px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; pointer-events: none; background: linear-gradient(transparent, rgba(10, 11, 14, 0.85)); }
+			.stage-ui > * { pointer-events: auto; }
+			.hints { display: flex; gap: 8px; flex-wrap: wrap; }
+			.hints span { font-size: 14px; color: #d4d8de; padding: 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); }
+			.hints i { font-style: normal; color: var(--amber); margin-right: 4px; }
+			.stage .tabs { margin: 0; }
+			.stage #theme-note { position: absolute; top: 18px; left: 22px; max-width: 420px; min-height: 0; font-size: 14px; color: #aab0ba; }
+			.device.flat { display: none; position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: min(760px, 92%); }
+			body:not(.has-3d) .device.flat { display: inline-grid; }
+			.meta { justify-content: center; margin-top: 22px; }
+			/* ---------- scroll reveal and cursor light ---------- */
+			.reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s ease, transform 0.7s ease; }
+			.reveal.in { opacity: 1; transform: none; }
+			.card, .step { position: relative; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease; }
+			.card::before, .step::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(300px circle at var(--mx, -100px) var(--my, -100px), rgba(255, 255, 255, 0.07), transparent 60%); }
+			.card:hover, .step:hover { transform: translateY(-3px); border-color: #34383f; }
+			@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } .grad { animation: none; } }
+			@media (max-width: 900px) { .stage { border-radius: 0; height: 74vh; } .hints span:nth-child(n + 2) { display: none; } .stage #theme-note { display: none; } }
 		</style>
 	</head>
 	<body>
@@ -120,32 +148,37 @@
 		</nav>
 
 		<header class="hero">
-			<div class="wrap grid">
-				<div>
-					<div class="eyebrow">Elgato Stream Deck plugin</div>
-					<h1>Your coding agents, live on your keys.</h1>
-					<p class="lead">Every Claude Code, Codex, Antigravity and Gemini session gets its own key: its state, timer, the tool it runs and the words it writes. <b>Press to jump to it. Hold to approve.</b></p>
-					<div class="cta">
-						<a class="btn primary" href="https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest">Download for Stream Deck</a>
-						<a class="btn" href="https://github.com/gabrielvaz/stream-deck-coding-agents">Source on GitHub</a>
-					</div>
-					<div class="meta"><span>Windows · macOS · WSL</span><span>Stream Deck 7.1+</span><span>Free and open source</span><span>Nothing leaves your computer</span></div>
+			<div class="wrap hero-copy">
+				<div class="eyebrow">Elgato Stream Deck plugin · free · open source</div>
+				<h1>Your coding agents,<br /><span class="grad">live on your keys.</span></h1>
+				<p class="lead">Every Claude Code, Codex, Antigravity and Gemini session gets its own key: its state, timer, the tool it runs and the words it writes. <b>Press to jump to it. Hold to approve.</b></p>
+				<div class="cta">
+					<a class="btn primary" href="https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest">Download for Stream Deck</a>
+					<a class="btn" href="https://github.com/gabrielvaz/stream-deck-coding-agents">Source on GitHub</a>
 				</div>
-				<div>
-					<div class="device deck" data-keys>
-						<img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" /> <img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" />
-						<img alt="" /><img alt="Agents overview key" /><img alt="Allow key" /><img alt="Deny key" /><img alt="Next page key" />
+			</div>
+			<div id="stage" class="stage" aria-label="An interactive 3D Stream Deck next to a laptop">
+				<div class="stage-ui">
+					<div class="hints">
+						<span><i>⟲</i> Drag to look around</span>
+						<span><i>●</i> Click a key: its terminal comes up</span>
+						<span><i>▮</i> Hold a pulsing key to approve</span>
 					</div>
 					<div class="tabs" role="group" aria-label="Theme">
 						<button data-theme="pulse">Pulse</button><button data-theme="glow">Glow</button><button data-theme="clawd">Clawd</button><button data-theme="minimal">Minimal</button>
 					</div>
 					<p id="theme-note"></p>
 				</div>
+				<div class="device deck flat" data-keys>
+					<img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" /> <img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" />
+					<img alt="" /><img alt="Agents overview key" /><img alt="Allow key" /><img alt="Deny key" /><img alt="Next page key" />
+				</div>
 			</div>
+			<div class="wrap meta"><span>Windows · macOS · WSL · SSH</span><span>Stream Deck 7.1+</span><span>Claude Code · Codex · Antigravity · Gemini · herdr</span><span>Nothing leaves your computer</span></div>
 		</header>
 
 		<section id="states">
-			<div class="wrap">
+			<div class="wrap reveal">
 				<h2>Every state at a glance</h2>
 				<p class="sub">Working keys always move, and each state has its own motion and mark, so you can read the deck from across the room without relying on colour. Switch the theme above and these change too.</p>
 				<div class="legend">
@@ -164,7 +197,7 @@
 		</section>
 
 		<section id="features">
-			<div class="wrap">
+			<div class="wrap reveal">
 				<h2>Made for running many agents at once</h2>
 				<p class="sub">The keys sort themselves: sessions waiting for you first, then working ones, then the ones that just finished. They hold still for a moment after you press one, so nothing moves under your finger.</p>
 				<div class="cards">
@@ -179,7 +212,7 @@
 		</section>
 
 		<section id="agents">
-			<div class="wrap">
+			<div class="wrap reveal">
 				<h2>Compatibility</h2>
 				<p class="sub">Hooks give the richest view: tool names, live text and approvals. herdr and <code>claude agents</code> add sessions without any setup.</p>
 				<table>
@@ -199,7 +232,7 @@
 		</section>
 
 		<section id="install">
-			<div class="wrap">
+			<div class="wrap reveal">
 				<h2>Set up in a minute</h2>
 				<p class="sub">Requires the Stream Deck app 7.1 or later on Windows 10+ or macOS 12+.</p>
 				<div class="steps">
@@ -211,7 +244,7 @@
 		</section>
 
 		<section id="faq">
-			<div class="wrap">
+			<div class="wrap reveal">
 				<h2>Questions</h2>
 				<details><summary>Do I need Node.js, a server or a terminal command?</summary><p>No. The plugin runs its own local endpoint and the hooks use the Node.js runtime that ships with Stream Deck.</p></details>
 				<details><summary>What happens if Stream Deck isn't running?</summary><p>The hooks answer neutrally and exit in milliseconds, so your agents never wait. A permission request the deck didn't answer simply shows its normal prompt.</p></details>
@@ -229,6 +262,6 @@
 				Not affiliated with Anthropic, OpenAI, Google, Elgato, Logitech or herdr. Product names are trademarks of their owners.
 			</div>
 		</footer>
-		<script type="module" src="assets/deck.js"></script>
+		<script type="module" src="assets/site.js"></script>
 	</body>
 </html>

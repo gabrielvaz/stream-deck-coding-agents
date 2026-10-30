@@ -69,6 +69,7 @@ function setTheme(next: ThemeId): void {
 	const info = THEMES.find((t) => t.id === next);
 	const note = document.getElementById("theme-note");
 	if (note && info) note.textContent = info.description;
+	window.dispatchEvent(new CustomEvent("deck-theme", { detail: next }));
 }
 
 for (const b of document.querySelectorAll<HTMLButtonElement>("[data-theme]")) b.addEventListener("click", () => setTheme(b.dataset.theme as ThemeId));
