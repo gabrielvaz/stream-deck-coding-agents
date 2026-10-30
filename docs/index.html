@@ -118,7 +118,8 @@
 			.hints span { font-size: 14px; color: #d4d8de; padding: 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); }
 			.hints i { font-style: normal; color: var(--amber); margin-right: 4px; }
 			.stage .tabs { margin: 0; }
-			.stage #theme-note { position: absolute; top: 18px; left: 22px; max-width: 420px; min-height: 0; font-size: 14px; color: #aab0ba; }
+			.theme-box { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+			.stage #theme-note { max-width: 380px; min-height: 0; font-size: 13px; line-height: 1.4; color: #aab0ba; text-align: right; }
 			.device.flat { display: none; position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: min(760px, 92%); }
 			body:not(.has-3d) .device.flat { display: inline-grid; }
 			.meta { justify-content: center; margin-top: 22px; }
@@ -174,10 +175,12 @@
 						<span><i>●</i> Click a key: its terminal comes up</span>
 						<span><i>▮</i> Hold a pulsing key to approve</span>
 					</div>
-					<div class="tabs" role="group" aria-label="Theme">
-						<button data-theme="pulse">Pulse</button><button data-theme="glow">Glow</button><button data-theme="clawd">Clawd</button><button data-theme="minimal">Minimal</button>
+					<div class="theme-box">
+						<div class="tabs" role="group" aria-label="Theme">
+							<button data-theme="pulse">Pulse</button><button data-theme="glow">Glow</button><button data-theme="clawd">Clawd</button><button data-theme="minimal">Minimal</button>
+						</div>
+						<p id="theme-note"></p>
 					</div>
-					<p id="theme-note"></p>
 				</div>
 				<div class="device deck flat" data-keys>
 					<img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" /> <img alt="" /><img alt="" /><img alt="" /><img alt="" /><img alt="" />

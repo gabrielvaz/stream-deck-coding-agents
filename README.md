@@ -16,6 +16,10 @@ Windows · macOS · WSL · SSH remotes &nbsp;|&nbsp; Stream Deck 7.1+ &nbsp;|&nb
 
 </div>
 
+> **Try it in your browser:** the [website](https://gabrielvaz.github.io/stream-deck-coding-agents/) has an interactive 3D Stream Deck next to a laptop. Click a key and its session's terminal comes up on the laptop; hold a pulsing key to approve its request.
+>
+> <img src="docs/website.jpg" alt="The website: an interactive 3D Stream Deck next to a laptop showing the session's terminal" />
+
 ---
 
 ## Contents
@@ -261,7 +265,7 @@ npm run pack        # dist/com.gabrielvaz.coding-agents.streamDeckPlugin
 npm run assets      # icons and default key images        (needs Playwright, PLAYWRIGHT_DIR=…)
 npm run gallery     # docs/ images + the setup-page screenshot
 npm run gifs        # docs/deck-<theme>.gif
-npm run site        # docs/assets/deck.js for the website (docs/index.html)
+npm run site        # docs/assets/site.js for the website (docs/index.html): 3D hero, legend
 ```
 
 The end-to-end tests run the real plugin bundle under `scripts/sim.mjs`, a stand-in for the Stream Deck app that speaks its WebSocket protocol. They connect every agent in a throw-away home folder, run the hook client the way each CLI does, drive herdr and `claude agents` through fake executables, and set up an "SSH" machine with the generated script. Live checks against the real tools:
@@ -283,7 +287,8 @@ src/core/remote.ts       SSH setup script
 src/core/focus.ts        open the session window (Windows via powershell.ts, macOS via osascript)
 src/render/              kit.ts (shared), theme-orb.ts (Pulse, Glow), theme-clawd.ts, theme-minimal.ts, tiles.ts
 src/hook/hook.mjs        the hook client the agents run (no dependencies)
-src/web/landing.ts       the website's live deck
+src/web/                 the website: scene3d.ts (three.js Stream Deck + laptop), mac-screen.ts (the laptop's
+                         terminal), world.ts (scripted sessions that wait for your approval), landing.ts
 com.gabrielvaz.coding-agents.sdPlugin/   manifest, icons, setup page (ui/)
 docs/                    website (index.html), images and GIFs
 marketplace/             listing text, privacy policy, gallery, icon, checklist
