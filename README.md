@@ -1,134 +1,131 @@
-# Agent Deck
+# Stream Deck Coding Agents
 
-> Transforme o **Steam Deck** (ou qualquer tela com navegador) no painel de status dos seus agentes de código, no estilo dos "tiles" do Logitech MX Keypad + Orbtile: um quadrado por sessão, um orbe colorido por agente, estado (`Thinking`, `Tool`, `Writing`, `Approval`, `Question`, `Done`, `Idle`, `Error`, `Offline`…), cronômetro e um tile-hub com o resumo de tudo.
+> Seus agentes de código no **Elgato Stream Deck**: uma tecla por sessão de Claude Code, Codex, Gemini CLI, Antigravity CLI ou herdr, com o mesmo visual dos tiles do Logitech MX Keypad (orbe colorido, estado, cronômetro, texto ao vivo). **Apertou a tecla, abre a janela daquela sessão.** Segurou, aprova o pedido de permissão. O mesmo painel também roda no navegador e no **Steam Deck**.
 
-![Agent Deck no modo demo](docs/screenshot.png)
+![Painel no navegador (modo demo)](docs/screenshot.png)
 
-Funciona com **Claude Code**, **OpenAI Codex CLI**, **Gemini CLI**, **Google Antigravity CLI (`agy`)**, qualquer agente rodando dentro do **herdr**, e qualquer programa que fale o [Adapter Protocol do Orbtile](https://github.com/Orbtile/orbtile-adapters) (Aider, scripts de deploy, jobs noturnos…).
-
-Zero dependências: só Node 18+ no computador onde os agentes rodam, e um navegador no Steam Deck.
+Zero dependências: Node 18+ no computador onde os agentes rodam. O plugin do Stream Deck usa o Node que o próprio app da Elgato já traz.
 
 ---
 
 ## Como funciona
 
 ```
- ┌──────────────┐  hooks (JSON por evento)   ┌──────────────────┐   SSE / HTTP   ┌─────────────────┐
- │ Claude Code  │ ─────────────────────────▶ │                  │ ─────────────▶ │  Steam Deck      │
- │ Codex CLI    │ ─────────────────────────▶ │  agent-deck      │                │  (Chromium kiosk │
- │ Gemini CLI   │ ─────────────────────────▶ │  serve           │ ◀───────────── │   em Gaming Mode)│
- │ Antigravity  │ ─────────────────────────▶ │  :7777           │  allow / deny  └─────────────────┘
- └──────────────┘                            │                  │  focus / read
- ┌──────────────┐  socket ~/.config/herdr    │                  │
- │ herdr        │ ◀────────────────────────▶ │                  │
- └──────────────┘                            │                  │
- ┌──────────────┐  /a/v1 (Orbtile Adapter)   │                  │
- │ adapters     │ ─────────────────────────▶ └──────────────────┘
- └──────────────┘
+ Claude Code ─┐  hooks (JSON por evento)   ┌──────────────────┐  SSE  ┌────────────────────────┐
+ Codex CLI   ─┤ ─────────────────────────▶ │  agent-deck      │ ────▶ │ Stream Deck (plugin)   │  tecla = abre a janela
+ Gemini CLI  ─┤                            │  serve  :7777    │ ◀──── │ Steam Deck / navegador │  segurar = Allow
+ Antigravity ─┘                            │                  │ ações └────────────────────────┘
+ herdr ◀──── socket ~/.config/herdr ──────▶│                  │
+ adapters (Orbtile /a/v1) ────────────────▶└──────────────────┘ ──▶ foca o terminal / IDE da sessão
 ```
 
-1. **`agent-deck serve`** roda no computador de desenvolvimento. Recebe os eventos dos hooks, mantém o estado de cada sessão e serve a interface.
-2. **`agent-deck install all`** escreve os hooks nos arquivos de configuração de cada CLI (com backup). Cada evento (`SessionStart`, `PreToolUse`, `PermissionRequest`, `Stop`…) vira uma transição de estado no painel.
-3. O **Steam Deck** abre a URL do servidor em um Chromium em modo kiosk, adicionado como "jogo não-Steam" para aparecer no Gaming Mode. Touch, D-pad, analógico e botões A/B/X/Y funcionam.
-4. Quando um agente pede permissão, o tile vira **Approval**, pulsa na cor de alarme do agente e você pode **aprovar segurando A** ou **negar com B** direto do Deck.
+1. `agent-deck serve` roda no PC. Recebe os hooks, guarda o estado de cada sessão e serve a interface.
+2. `agent-deck install all` grava os hooks nos arquivos de cada CLI (com backup e sem duplicar). Cada evento vira uma transição de estado. O hook também registra o **PID do processo do agente**: é com ele que o botão acha a janela certa.
+3. O plugin do Stream Deck (ou o navegador / Steam Deck) assina o stream de eventos e desenha os tiles.
+4. Apertar uma tecla manda `focus` para o servidor, que traz a janela da sessão para frente (Windows Terminal, VS Code, Terminal.app, iTerm2, X11…). Segurar 0,6 s em um tile **Approval** manda `allow`.
 
 ## Estados (iguais aos do keypad)
 
-| Estado no tile | `activity` | O que dispara |
+| Tile | `activity` | Dispara com |
 | --- | --- | --- |
-| **Starting** | `starting` | sessão abriu (`SessionStart`) |
+| **Starting** | `starting` | `SessionStart` |
 | **Thinking** | `thinking` | prompt enviado, modelo pensando, entre ferramentas |
-| **Tool** | `tool` | ferramenta rodando; mostra `Bash  npm test`, `Read  index.ts`… |
-| **Writing** | `streaming` | texto do assistente chegando (Claude `MessageDisplay`), com efeito de digitação |
-| **Approval** | `waitingPermission` | agente pediu permissão (`PermissionRequest`, `ToolPermission`, `permission_prompt`) |
-| **Question** | `waitingQuestion` | `AskUserQuestion` / `request_user_input` / `agent_needs_input` |
-| **Compacting** | `compacting` | compactação de contexto; volta ao estado anterior depois |
-| **Done** | `done` | turno terminou (`Stop`, `AfterAgent`); mostra a última linha da resposta |
+| **Tool** | `tool` | ferramenta rodando: `Bash  npm test`, `Read  index.ts`… |
+| **Writing** | `streaming` | texto do assistente chegando (Claude `MessageDisplay`) |
+| **Approval** | `waitingPermission` | `PermissionRequest`, `ToolPermission`, `permission_prompt` |
+| **Question** | `waitingQuestion` | `AskUserQuestion`, `request_user_input`, `agent_needs_input` |
+| **Compacting** | `compacting` | compactação de contexto; depois volta ao estado anterior |
+| **Done** | `done` | `Stop` / `AfterAgent`; mostra a última linha da resposta |
 | **Error** | `error` | `StopFailure`, erro de API, `terminationReason: error` |
-| **Idle** | `idle` | aberta esperando prompt (`idle_prompt`, `Interrupt`, ou 90 s depois de `Done`) |
-| **Offline** | `offline` | adapter parou de dar heartbeat ou TTL expirou |
+| **Idle** | `idle` | esperando prompt (`idle_prompt`, `Interrupt`, 90 s após Done) |
+| **Offline** | `offline` | adapter sem heartbeat ou TTL vencido |
 
-Cores: cada agente tem uma cor de trabalho e uma cor de alarme (Claude âmbar / terracota, Codex azul / magenta, Antigravity verde / rosa, Gemini violeta / rosa, Grok branco / laranja). Erro é vermelho em todos. Tudo configurável em `~/.agent-deck/config.json`.
+Cores: cada agente tem cor de trabalho e cor de alarme (Claude âmbar/terracota, Codex azul/magenta, Antigravity verde/rosa, Gemini violeta/rosa, Grok branco/laranja); erro é vermelho. Ordem das teclas: **esperando você → trabalhando → terminou há < 15 s → done → idle → offline**, recalculada a cada 8 s. O tile **hub** mostra quantos trabalhando, quantos esperando (e qual), quantos done, contagem por agente e um pip por tecla.
 
-Ordem dos tiles: **esperando você → trabalhando → terminou há menos de 15 s → done → idle → offline**. A ordem é recalculada a cada 8 s e congela por 1,5 s depois de qualquer toque, para o tile não fugir do dedo. O 9º tile é sempre o **hub**: quantos trabalhando, quantos esperando (e qual), quantos done, contagem por agente e 8 "pips" com a cor de cada tile da página.
-
-## Instalação rápida (computador de desenvolvimento)
+## 1. Servidor (PC onde os agentes rodam)
 
 ```bash
-cd apps/agent-deck
-node bin/agent-deck.mjs serve          # ou: bun run start
+git clone https://github.com/gabrielvaz/stream-deck-coding-agents
+cd stream-deck-coding-agents
+node bin/agent-deck.mjs serve        # deixe rodando (ou use steamdeck/agent-deck.service / agent-deck-server.bat)
 ```
 
 Em outro terminal:
 
 ```bash
-node bin/agent-deck.mjs install all    # claude codex gemini antigravity
-node bin/agent-deck.mjs doctor         # confere hooks, socket do herdr e servidor
+node bin/agent-deck.mjs install all  # claude codex gemini antigravity
+node bin/agent-deck.mjs doctor       # confere hooks, socket do herdr e servidor
+node bin/agent-deck.mjs demo         # sessões falsas para ver o painel sem configurar nada
 ```
 
-`serve` imprime as URLs para abrir no Deck, já com o token:
+Depois do `install`: no **Codex**, abra o codex e rode `/hooks` para revisar e confiar nos hooks. No **Gemini CLI**, se nada aparecer, `/hooks enable-all`.
 
+## 2. Elgato Stream Deck
+
+Requisitos: app Stream Deck 6.5 ou mais novo (Windows 10+ / macOS 12+). Nenhuma dependência extra.
+
+```bash
+node bin/agent-deck.mjs streamdeck install     # copia o plugin para a pasta do app
 ```
-agent-deck listening on 0.0.0.0:7777
-Open on the Steam Deck (or any browser):
-  http://127.0.0.1:7777/#k=5A_NtDR0MZrG...
-  http://192.168.1.20:7777/#k=5A_NtDR0MZrG...
-```
 
-Quer ver o painel antes de configurar qualquer agente? `node bin/agent-deck.mjs demo` sobe sessões falsas passando por todos os estados.
+(No WSL o comando acha a pasta `%APPDATA%\Elgato\StreamDeck\Plugins` do Windows sozinho. Para desenvolver, `--link` cria um symlink.)
 
-Para deixar o servidor sempre ligado: `steamdeck/agent-deck.service` (systemd user, Linux) ou `steamdeck/agent-deck-server.bat` (Windows, coloque em `shell:startup`).
+Feche e abra o app Stream Deck. Na categoria **Coding Agents** arraste para as teclas:
 
-### Windows / WSL
-
-O servidor roda tanto no Windows nativo quanto no WSL. Os hooks precisam estar no mesmo lado em que o agente roda: se o Claude Code roda no WSL, execute `install` no WSL. Se o servidor estiver no Windows e o agente no WSL (ou vice-versa), aponte o hook para o outro lado com `AGENT_DECK_SERVER=<ip>` e `AGENT_DECK_TOKEN=<token>` no ambiente do agente (o endpoint de hooks aceita loopback sem token; de outro IP exige o token).
-
-## Instalação no Steam Deck
-
-1. No Deck, troque para **Desktop Mode** e abra o Konsole.
-2. Copie `steamdeck/` para o Deck (ou use `curl` apontando para o raw do repositório) e rode:
-
-   ```bash
-   bash install-on-deck.sh "http://192.168.1.20:7777/#k=SEU_TOKEN"
-   ```
-
-   O script instala o Chromium (flatpak) se preciso, cria `~/.local/share/agent-deck/agent-deck.sh` (kiosk 1280×800) e uma entrada de desktop.
-3. Ainda no Desktop Mode: **Steam → Games → Add a Non-Steam Game to My Library** → Browse → selecione `~/.local/share/agent-deck/agent-deck.sh` ("All files"). Renomeie para *Agent Deck* e, se quiser, coloque a arte `steamdeck/icon.svg`.
-4. **Properties → Controller**: escolha o template **Gamepad** (o painel lê o controle pela Gamepad API) ou **Keyboard (WASD) and Mouse** (o painel também entende WASD/setas/Enter/Esc). Os dois funcionam.
-5. Volte ao **Gaming Mode** e abra *Agent Deck* na aba Non-Steam. Deixe o Deck no suporte ao lado do monitor.
-
-Dica: no Gaming Mode, segure o botão **Steam** → *Performance* → limite de FPS 30 e brilho mais baixo para o Deck ficar horas ligado sem esquentar.
-
-### Controles
-
-| Deck | Teclado | Ação |
-| --- | --- | --- |
-| D-pad / analógico | setas, WASD, Tab | mover seleção entre os 9 tiles |
-| **A** | Enter / Espaço | abrir o tile em modo foco; no hub, pula para a primeira sessão esperando |
-| **segurar A** (0,6 s) | segurar Enter | **Allow** em uma aprovação / **Send** em uma pergunta |
-| **B** | Esc / Backspace | voltar; em uma aprovação, **Deny** |
-| **X** | X | marcar como lido |
-| **Y** | Y / F | trazer a janela do agente para frente (herdr / adapters) |
-| **LB / RB** | Q / E, PageUp / PageDown | página anterior / próxima (8 sessões por página) |
-| Start | ⚙ | configurações (som, sessões offline, modo "zen", token) |
-| toque | clique | selecionar e abrir |
-
-## Aprovar do Deck: como funciona por agente
-
-| Agente | Mostrar estado | Allow / Deny do Deck | Como |
+| Ação | Tecla mostra | Apertar | Segurar (0,6 s) |
 | --- | --- | --- | --- |
-| Claude Code | ✔ | ✔ | o hook `PermissionRequest` fica aberto até `approvalHoldSeconds` (20 s) **somente enquanto um Deck está conectado**; se você responder no Deck, o hook devolve a decisão; se não, o prompt normal do terminal aparece. "Answer in terminal" libera na hora. |
-| Codex CLI | ✔ | ✔ | mesmo mecanismo, via `~/.codex/hooks.json`. Codex exige que você revise e confie nos hooks (`/hooks` dentro do codex). |
-| Gemini CLI | ✔ | — | `Notification: ToolPermission` é só observabilidade; responda no terminal (ou rode dentro do herdr). |
-| Antigravity CLI | ✔ | — | hooks em `~/.gemini/config/hooks.json`; o hook `PreToolUse` responde `{"decision":"allow"}` (delega para a política padrão do agy). Responda no terminal ou rode dentro do herdr. |
-| herdr (qualquer agente) | ✔ | ✔ | status vem do socket do herdr; Allow/Deny mandam teclas (`enter` / `esc`, configurável em `herdr.keys`) para o painel via `herdr agent send-keys`. Perguntas numéricas: digita o número + Enter. |
-| Adapters (Orbtile) | ✔ | ✔ | decisões entram na fila `POST /a/v1/adapters/{id}/events` (protocolo v1.1). |
+| **Agent Session** | título, estado + tempo, detalhe, orbe, selo do agente | **abre a janela daquela sessão** | **Allow** se estiver em Approval; escolhe a 1ª opção se for Question; senão marca como lida |
+| **Agents Hub** | N working / none waiting / N done / contagem por agente / pips | abre a janela da primeira sessão esperando você | próxima página |
+| **Allow** / **Deny** | verde/vermelho com o nome da sessão pendente | responde o primeiro pedido de permissão | — |
+| **Next Page** | página atual | avança 8 sessões | — |
 
-A decisão do Deck nunca é executada por conta própria: ela só é entregue ao hook que está aguardando ou enviada como tecla ao terminal. O diálogo do próprio agente continua sendo a autoridade.
+Um layout comum num Stream Deck de 15 teclas: 8 × *Agent Session* (em **Auto** elas pegam os slots 1–8 pela posição da tecla), 1 × *Agents Hub*, *Allow*, *Deny*, *Next Page*. Em *Property Inspector* dá para fixar o slot de cada tecla e informar o servidor e o token quando o servidor não está na mesma máquina (ou está no WSL e o Stream Deck no Windows: use `http://127.0.0.1:7777` e cole o token de `agent-deck token`). Sem nada configurado, o plugin lê `~/.agent-deck/config.json`.
 
-## Configuração
+### O que "abrir a janela" faz em cada sistema
 
-`~/.agent-deck/config.json` (criado no primeiro `serve`):
+| Sistema | Como acha a janela | Observações |
+| --- | --- | --- |
+| Windows | sobe a árvore de processos a partir do PID do agente até achar uma janela (Windows Terminal, VS Code, cmd…) e chama `SetForegroundWindow`; se não achar, procura janela cujo título contenha o prompt, o projeto ou o nome do agente | funciona com Claude Code, Codex e Gemini rodando no PowerShell/cmd/Windows Terminal/VS Code |
+| WSL | PID do WSL não enxerga janelas; usa a busca por título via `powershell.exe` (o Windows Terminal mostra o título que o Claude Code define) | se quiser exatidão, use `openCommand` (abaixo) |
+| macOS | `tty` do agente → aba exata no **Terminal.app** ou **iTerm2**; senão `System Events` traz para frente o app ancestral (VS Code, Warp…) | pode pedir permissão de Automação/Acessibilidade na primeira vez |
+| Linux (X11) | `xdotool search --pid` na árvore de processos, depois por título | instale `xdotool`; Wayland precisa de `openCommand` |
+| herdr | `herdr agent focus <pane>` | foca o pane exato |
+| adapters Orbtile | `openURL` da sessão + evento `tap` | |
+
+Para forçar um comando próprio (por exemplo abrir o Juspilot/OpenBot, o VS Code na pasta, ou um `wt focus-tab`):
+
+```json
+{ "openCommand": "code --reuse-window \"{cwd}\"" }
+```
+
+ou por agente: `"agents": { "codex": { "openCommand": "wt -w 0 nt -d \"{cwd}\"" } }`. Placeholders: `{cwd} {project} {title} {pid} {sessionId} {agent}`.
+
+## 3. Navegador e Steam Deck
+
+`agent-deck serve` imprime a URL já com o token (`http://IP:7777/#k=…`). Abra em qualquer navegador para ter o painel 3×3 da captura acima (touch, teclado e gamepad).
+
+No **Steam Deck** (Desktop Mode → Konsole):
+
+```bash
+bash steamdeck/install-on-deck.sh "http://192.168.1.20:7777/#k=SEU_TOKEN"
+```
+
+O script instala o Chromium (flatpak) se preciso, cria o launcher kiosk 1280×800 e explica como adicioná-lo como jogo não-Steam. Controles: D-pad/analógico move, **A** abre, **segurar A** aprova, **B** nega/volta, **X** marca lido, **Y** abre a janela no PC, **LB/RB** páginas.
+
+## Aprovar de longe, por agente
+
+| Agente | Estado | Allow / Deny | Como |
+| --- | --- | --- | --- |
+| Claude Code | ✔ | ✔ | o hook `PermissionRequest` fica aberto até `approvalHoldSeconds` (20 s) **só enquanto um painel/plugin está conectado**; sua decisão volta pelo hook, senão o prompt do terminal aparece normalmente |
+| Codex CLI | ✔ | ✔ | mesmo mecanismo via `~/.codex/hooks.json` |
+| Gemini CLI | ✔ | — | `Notification: ToolPermission` é só observabilidade; aperte a tecla para abrir a janela e responder |
+| Antigravity CLI | ✔ | — | hooks em `~/.gemini/config/hooks.json`; `PreToolUse` responde `{"decision":"allow"}` (delega à política do agy) |
+| herdr | ✔ | ✔ | status pelo socket; Allow/Deny = `herdr agent send-keys` (`enter`/`esc`, configurável) |
+| Adapters | ✔ | ✔ | fila `POST /a/v1/adapters/{id}/events` (protocolo v1.1) |
+
+A decisão nunca é executada pelo painel: ela é entregue ao hook que está esperando ou enviada como tecla ao terminal. O diálogo do agente continua sendo a autoridade.
+
+## Configuração (`~/.agent-deck/config.json`)
 
 ```json
 {
@@ -139,58 +136,47 @@ A decisão do Deck nunca é executada por conta própria: ela só é entregue ao
   "approvalHoldSeconds": 20,
   "doneToIdleSeconds": 90,
   "idleKeepMinutes": 120,
-  "offlineKeepSeconds": 600,
+  "openCommand": null,
   "herdr": { "enabled": true, "socketPath": null, "hideAgents": "auto", "keys": { "allow": ["enter"], "deny": ["esc"] } },
-  "agents": {
-    "claude": { "name": "Claude", "color": "#F3B257", "alarm": "#E2714B" },
-    "codex": { "color": "#5B8DFF" }
-  },
+  "agents": { "claude": { "name": "Claude", "color": "#F3B257", "alarm": "#E2714B", "openCommand": null } },
   "installed": ["claude", "codex"]
 }
 ```
 
-- `herdr.hideAgents: "auto"` esconde no herdr os agentes que já têm hook instalado (evita tile duplicado). Use `"none"` para mostrar tudo ou uma lista `["claude"]`.
-- `requireToken: false` (ou `serve --no-token`) dispensa o token em redes confiáveis.
-- Variáveis de ambiente: `AGENT_DECK_HOME`, `AGENT_DECK_PORT`, `AGENT_DECK_HOST`, `AGENT_DECK_TOKEN`, `AGENT_DECK_SERVER` (host para o hook), `AGENT_DECK_HOST_ALIAS` (nome da máquina quando a sessão é remota, aparece com 🌐).
+- `herdr.hideAgents: "auto"` esconde no herdr os agentes que já têm hook (evita tile duplicado).
+- `requireToken: false` ou `serve --no-token` em rede confiável.
+- Env: `AGENT_DECK_HOME`, `AGENT_DECK_PORT`, `AGENT_DECK_HOST`, `AGENT_DECK_TOKEN`, `AGENT_DECK_SERVER` (host que o hook chama), `AGENT_DECK_HOST_ALIAS` (sessão remota, aparece com 🌐).
+- Hooks por projeto: `agent-deck install claude --project ./repo`. `agent-deck uninstall …` remove só as entradas do Agent Deck.
 
-Hooks por projeto em vez de globais: `agent-deck install claude --project ./meu-repo` (escreve em `.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json` ou `.agents/hooks.json`). `agent-deck uninstall …` remove só as entradas do Agent Deck e deixa um `.agent-deck-bak`.
+### Servidor no WSL, Stream Deck no Windows
+
+Rode `serve` e `install` dentro do WSL (onde os agentes rodam). No plugin, informe `http://127.0.0.1:7777` e o token (`agent-deck token` no WSL). O botão "abrir janela" usa `powershell.exe` por título; para precisão total, configure `openCommand` com `wt.exe` ou `code`.
 
 ## O que o instalador escreve
 
 | Agente | Arquivo | Eventos |
 | --- | --- | --- |
-| Claude Code | `~/.claude/settings.json` → `hooks` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `MessageDisplay` (hook `http`, sem spawn por chunk), `SubagentStart/Stop`, `Stop`, `StopFailure`, `PreCompact`, `PostCompact`, `SessionEnd`. Os eventos só de observação usam `async: true`. |
+| Claude Code | `~/.claude/settings.json` → `hooks` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `MessageDisplay` (hook `http`), `SubagentStart/Stop`, `Stop`, `StopFailure`, `PreCompact`, `PostCompact`, `SessionEnd` (os de observação com `async: true`) |
 | Codex CLI | `~/.codex/hooks.json` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreCompact`, `PostCompact`, `SubagentStart/Stop`, `Stop`, `Interrupt`, `SessionEnd` |
 | Gemini CLI | `~/.gemini/settings.json` → `hooks` (+ `tools.enableHooks`) | `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, `AfterTool`, `Notification`, `PreCompress` |
-| Antigravity CLI | `~/.gemini/config/hooks.json` → `"agent-deck"` | `SessionStart`, `PreInvocation`, `PostInvocation`, `PreToolUse`, `PostToolUse`, `Stop` (o nome do evento vai como argumento, porque o agy não o inclui no JSON) |
+| Antigravity CLI | `~/.gemini/config/hooks.json` → `"agent-deck"` | `SessionStart`, `PreInvocation`, `PostInvocation`, `PreToolUse`, `PostToolUse`, `Stop` (nome do evento vai como argumento) |
 
-Todos chamam `hooks/agent-deck-hook.mjs <agente> [evento]`, que lê o JSON do stdin, faz um `POST http://127.0.0.1:7777/api/v1/hook/<agente>` e devolve a resposta. Se o servidor estiver desligado o hook responde a saída neutra e sai com 0; o agente nunca trava por causa do painel.
+Todos chamam `hooks/agent-deck-hook.mjs <agente> [evento]`: lê o JSON do stdin, faz `POST http://127.0.0.1:7777/api/v1/hook/<agente>?pid=<pid do agente>` e devolve a resposta. Servidor desligado = resposta neutra e exit 0; o agente nunca trava.
 
 ## API
 
-Tudo abaixo exige o token (`?k=`, `Authorization: Bearer` ou `X-Agent-Deck-Token`), exceto `/api/v1/hook/*` vindo de loopback.
+Token obrigatório (`?k=`, `Authorization: Bearer` ou `X-Agent-Deck-Token`), exceto `/api/v1/hook/*` vindo de loopback.
 
 | Método | Rota | Para quê |
 | --- | --- | --- |
 | `GET` | `/api/v1/state` | snapshot (sessões ordenadas, resumo, paleta) |
-| `GET` | `/api/v1/events` | Server-Sent Events com o mesmo snapshot a cada mudança |
-| `POST` | `/api/v1/hook/:agent?event=` | entrada dos hooks |
-| `POST` | `/api/v1/sessions/:uid/actions` | `{"action":"allow"|"deny"|"dismiss"|"answer"|"focus"|"read"|"remove"}` |
+| `GET` | `/api/v1/events` | Server-Sent Events, um snapshot por mudança |
+| `POST` | `/api/v1/hook/:agent?event=&pid=` | entrada dos hooks |
+| `POST` | `/api/v1/sessions/:uid/actions` | `{"action":"focus"|"allow"|"deny"|"dismiss"|"answer"|"read"|"remove"}` |
 | `POST` | `/api/v1/sessions` | API simples: `{"agent":"custom","id":"job-1","title":"Deploy","activity":"tool","toolLabel":"Deploy  web"}` |
-| `*` | `/a/v1/…` | Adapter Protocol v1.1 compatível com Orbtile (`PUT /adapters/{id}`, `POST /adapters/{id}/sessions/{sid}`, `heartbeat`, `events`, `GET /info` com prova HMAC) |
+| `*` | `/a/v1/…` | Adapter Protocol v1.1 compatível com [Orbtile](https://github.com/Orbtile/orbtile-adapters) (`PUT /adapters/{id}`, `POST …/sessions/{sid}`, `heartbeat`, `events`, `GET /info` com prova HMAC) |
 
-O arquivo de descoberta `~/.agent-deck/adapter-api.json` tem `url`, `socketPath` (Linux/macOS), `basePath` e `token`. Os adapters de referência do Orbtile (`ref.py`, `ref.mjs`, `ref-shell.sh`) rodam sem alteração com `ORBTILE_API_FILE=~/.agent-deck/adapter-api.json`.
-
-Exemplo em shell de um job qualquer aparecendo no Deck:
-
-```bash
-T=$(node bin/agent-deck.mjs token)
-curl -s -X POST localhost:7777/api/v1/sessions -H "X-Agent-Deck-Token: $T" -H 'Content-Type: application/json' \
-  -d '{"agent":"custom","id":"deploy-prod","title":"Deploy to prod","activity":"tool","toolLabel":"Deploy  web"}'
-# … no fim:
-curl -s -X POST localhost:7777/api/v1/sessions -H "X-Agent-Deck-Token: $T" -H 'Content-Type: application/json' \
-  -d '{"agent":"custom","id":"deploy-prod","activity":"done"}'
-```
+Descoberta: `~/.agent-deck/adapter-api.json` (`url`, `socketPath`, `basePath`, `token`). Os adapters de referência do Orbtile rodam sem alteração com `ORBTILE_API_FILE=~/.agent-deck/adapter-api.json`.
 
 ## Comandos
 
@@ -199,44 +185,40 @@ agent-deck serve [--port N] [--host A] [--no-token] [--no-herdr] [--demo]
 agent-deck demo
 agent-deck install <claude|codex|gemini|antigravity|all> [--project DIR] [--no-live-text]
 agent-deck uninstall <…>
-agent-deck status
-agent-deck token [--rotate]
-agent-deck url
-agent-deck doctor
+agent-deck streamdeck install [--link] | uninstall
+agent-deck status · token [--rotate] · url · doctor
 ```
 
 ## Desenvolvimento
 
 ```bash
-bun run test          # node --test (store, mappers, fluxo de aprovação)
-bun run demo          # servidor com sessões falsas
-bun run screenshot    # docs/screenshot.png e docs/focus.png via Playwright (PLAYWRIGHT_DIR opcional)
+npm test                      # scripts/agent-deck-e2e.mjs: servidor real, hooks reais, SSE, aprovação segurada, focus, Adapter API → .build/agent-deck-e2e.json
+npm run demo                  # servidor com sessões falsas
+npm run screenshot            # docs/*.png via Playwright (PLAYWRIGHT_DIR opcional)
+node streamdeck/make-icons.mjs   # regenera os PNGs do plugin
 ```
 
-Estrutura:
-
 ```
-bin/agent-deck.mjs        CLI
-src/server.mjs            HTTP + SSE + hooks + Adapter API
-src/store.mjs             estado das sessões, tiers, ações, decisões pendentes
-src/mappers/*.mjs         evento de cada CLI → estado do tile
-src/herdr.mjs             cliente do socket do herdr + ações via CLI
-src/install.mjs           instaladores (backup + merge idempotente)
-hooks/agent-deck-hook.mjs script universal chamado pelos agentes
-web/                      interface (HTML/CSS/JS puro, sem build)
-steamdeck/                instalador kiosk, ícone, service/bat do servidor
+bin/agent-deck.mjs            CLI
+src/server.mjs                HTTP + SSE + hooks + Adapter API
+src/store.mjs                 estado das sessões, tiers, ações, decisões pendentes
+src/focus.mjs                 "abrir a janela": Windows / WSL / macOS / Linux / openCommand
+src/mappers/*.mjs             evento de cada CLI → estado do tile
+src/herdr.mjs                 socket do herdr + ações via CLI
+src/install.mjs               instaladores de hooks
+src/streamdeck.mjs            instalador do plugin
+hooks/agent-deck-hook.mjs     script universal chamado pelos agentes
+streamdeck/com.gabrielvaz.coding-agents.sdPlugin/   plugin Elgato (manifest, bin/plugin.mjs, pi/, imgs/)
+web/                          painel do navegador / Steam Deck (HTML/CSS/JS puro)
+steamdeck/                    instalador kiosk, ícone, service/bat do servidor
 ```
 
-## Diferenças em relação ao Orbtile / MX Keypad
+O plugin fala o protocolo WebSocket do Stream Deck direto (cliente RFC 6455 mínimo) e desenha cada tecla como SVG, então não há build nem `node_modules`.
 
-- Tela do Deck (1280×800) em vez de 9 LCDs de 1,5": os tiles têm a mesma hierarquia (título, estado + tempo, detalhe, orbe, selo do agente) e o hub na 9ª posição, mas há espaço para um modo foco com o texto completo e botões.
-- Hold-to-allow de 0,6 s e "Deny" num botão só, como no keypad (tecla 9 / tecla 7).
-- Sem dependência de app desktop nem de conta: Node + navegador.
-- O Orbtile lê o banco do Codex e a UI do Antigravity sem hooks; aqui tudo passa por hooks ou pelo herdr. Sessões abertas antes do `serve` só aparecem no próximo evento.
+## Créditos
 
-## Créditos e referências
+- [Orbtile](https://orbtile.com) e seu [Adapter Protocol](https://github.com/Orbtile/orbtile-adapters) (MIT), que inspiraram os estados, a ordenação e a API compatível. [Logitech MX Keypad](https://www.logitech.com/en-us/shop/p/mx-keypad).
+- Hooks: [Claude Code](https://code.claude.com/docs/en/hooks), [Codex CLI](https://developers.openai.com/codex/hooks), [Gemini CLI](https://geminicli.com/docs/hooks/), [Antigravity CLI](https://antigravity.google/docs/hooks), [herdr](https://herdr.dev/tui/docs/socket-api/). [Stream Deck SDK](https://docs.elgato.com/streamdeck/sdk/).
+- Relacionados: [eyes-on-claude-code](https://github.com/joe-re/eyes-on-claude-code), [claude-code-monitor](https://github.com/bruceyxli/claude-code-monitor), [keyvo](https://github.com/qubernetic/keyvo).
 
-- [Orbtile](https://orbtile.com) e o [Adapter Protocol](https://github.com/Orbtile/orbtile-adapters) (MIT), que inspiraram os estados, a ordenação e a API compatível.
-- [Logitech MX Keypad](https://www.logitech.com/en-us/shop/p/mx-keypad) / MX Creative Keypad.
-- Hooks: [Claude Code](https://code.claude.com/docs/en/hooks), [Codex CLI](https://developers.openai.com/codex/hooks), [Gemini CLI](https://geminicli.com/docs/hooks/), [Antigravity CLI](https://antigravity.google/docs/hooks), [herdr](https://herdr.dev/tui/docs/socket-api/).
-- Projetos relacionados para Claude Code que valem uma olhada: [eyes-on-claude-code](https://github.com/joe-re/eyes-on-claude-code), [claude-code-monitor](https://github.com/bruceyxli/claude-code-monitor), [keyvo](https://github.com/qubernetic/keyvo) (MX Creative Keypad no Linux).
+MIT © Gabriel Vaz

@@ -6,6 +6,7 @@ import { startDemo } from "../src/demo.mjs";
 import { HerdrClient, herdrSocketPath } from "../src/herdr.mjs";
 import { HOOK_SCRIPT, hookStatus, installAgents, SUPPORTED, uninstallAgents } from "../src/install.mjs";
 import { createDeckServer } from "../src/server.mjs";
+import { installPlugin, PLUGIN_SRC, pluginsDir, uninstallPlugin } from "../src/streamdeck.mjs";
 import { DeckStore } from "../src/store.mjs";
 import { lanAddresses, randomToken } from "../src/util.mjs";
 
@@ -20,6 +21,8 @@ Usage:
   agent-deck token [--rotate]          print (or rotate) the deck token
   agent-deck doctor                    check hooks, herdr socket and server
   agent-deck url                       print the URLs to open on the Steam Deck
+  agent-deck streamdeck install [--link]   copy (or symlink) the Elgato Stream Deck plugin into the Stream Deck app
+  agent-deck streamdeck uninstall
 
 Agents: ${SUPPORTED.join(", ")} (herdr sessions are picked up automatically from its socket)
 Config: ${CONFIG_PATH}
@@ -35,7 +38,7 @@ function parseArgs(argv) {
       if (
         next !== undefined &&
         !next.startsWith("--") &&
-        !["no-token", "no-herdr", "demo", "rotate", "no-live-text", "open"].includes(key)
+        !["no-token", "no-herdr", "demo", "rotate", "no-live-text", "open", "link"].includes(key)
       ) {
         args.flags[key] = next;
         i += 1;
@@ -177,6 +180,20 @@ async function main() {
           })
         : loadConfig();
       console.log(config.token);
+      return;
+    }
+    case "streamdeck": {
+      const sub = args._[1] ?? "install";
+      if (sub === "uninstall") {
+        const removed = uninstallPlugin();
+        console.log(removed ? `✔ removed ${removed}` : "Stream Deck plugins folder not found");
+        return;
+      }
+      if (sub !== "install") throw new Error("usage: agent-deck streamdeck install [--link] | uninstall");
+      const { target, linked } = installPlugin({ link: Boolean(args.flags.link) });
+      console.log(`✔ ${linked ? "linked" : "copied"} ${PLUGIN_SRC}\n  → ${target}`);
+      console.log("Now quit and reopen the Stream Deck app, then drag 'Coding Agents → Agent Session' onto your keys.");
+      console.log(`Plugins folder: ${pluginsDir()}`);
       return;
     }
     case "url": {
