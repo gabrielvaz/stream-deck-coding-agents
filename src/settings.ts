@@ -1,7 +1,7 @@
 import { AGENTS, type AgentId, type AgentInfo, HOOK_AGENTS } from "./core/agents";
 import { isTheme, safeColor, type ThemeId } from "./render/tiles";
 
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 export const DEFAULT_PORT = 47821;
 
 /** Plugin-wide settings, edited in the property inspector (sdpi `global` fields, flat keys). */

@@ -1,6 +1,6 @@
 {
   "name": "stream-deck-coding-agents",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Elgato Stream Deck plugin that shows your Claude Code, Codex and Antigravity CLI sessions as live tiles: state, timer, tool, streamed text and a breathing orb. Press to open the session window, hold to approve.",
   "type": "module",
