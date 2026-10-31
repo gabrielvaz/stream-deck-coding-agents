@@ -77,6 +77,11 @@
 			.card h3 { margin: 8px 0 8px; font-size: 20px; }
 			.card p { margin: 0; color: #b9bfc9; font-size: 16px; }
 			.card .icon { font-size: 26px; }
+			.card.wide { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; }
+			.card.wide ul { margin: 12px 0 0; padding-left: 18px; color: #b9bfc9; font-size: 16px; }
+			.card.wide li { margin: 4px 0; }
+			.limit-keys { display: flex; gap: 14px; }
+			.limit-keys img { width: 132px; height: 132px; border-radius: 18px; box-shadow: 0 0 0 1px var(--line), 0 18px 40px rgba(0, 0, 0, 0.45); }
 			table { width: 100%; border-collapse: collapse; font-size: 16px; }
 			th, td { text-align: left; padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 			th { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -98,6 +103,8 @@
 			@media (max-width: 900px) {
 				.hero .grid { grid-template-columns: 1fr; }
 				.cards, .steps { grid-template-columns: 1fr; }
+				.card.wide { grid-template-columns: 1fr; }
+				.limit-keys img { width: calc((100% - 28px) / 3); height: auto; }
 				.legend { grid-template-columns: repeat(3, 1fr); }
 				nav .links { display: none; }
 				.device { gap: 8px; padding: 14px; border-radius: 24px; }
@@ -221,6 +228,23 @@
 					<div class="card"><div class="icon">◎</div><h3>Everywhere you code</h3><p>Windows, macOS, agents inside WSL, and servers you reach over SSH. A remote machine needs only curl and python3.</p></div>
 					<div class="card"><div class="icon">⧉</div><h3>24+ agents through herdr</h3><p>Running agents in herdr? Cursor, Copilot, OpenCode, Droid, Amp, Grok, Kiro, Qwen, Cline, Pi and more show up too, and the keys can answer their prompts.</p></div>
 					<div class="card"><div class="icon">⛨</div><h3>Private by design</h3><p>A local endpoint on 127.0.0.1 with a token only your account can read. No account, no analytics. Only an Agent Limits key asks Anthropic or Google for your own usage.</p></div>
+					<div class="card wide">
+						<div>
+							<div class="icon">◔</div>
+							<h3>Know how much is left</h3>
+							<p>An Agent Limits key shows how much of your usage is left before you hit the wall, and when it comes back. Place one key per agent.</p>
+							<ul>
+								<li><b>Claude Code</b> and <b>Codex</b>: the 5-hour and weekly windows, each with a bar and the time until it resets.</li>
+								<li><b>Antigravity</b>: the quota of each model, the most used first.</li>
+								<li>The bar turns orange at 25&nbsp;% left and red at 10&nbsp;%. Press the key to refresh.</li>
+							</ul>
+						</div>
+						<div class="limit-keys">
+							<img src="assets/limits-claude.svg" alt="Claude Code limits key: 72% of the 5-hour window and 59% of the week left" />
+							<img src="assets/limits-codex.svg" alt="Codex limits key: 12% of the 5-hour window left, shown in orange, and 37% of the week" />
+							<img src="assets/limits-antigravity.svg" alt="Antigravity limits key: quota left for Opus 5.5 and Gemini 3 Pro" />
+						</div>
+					</div>
 				</div>
 			</div>
 		</section>
