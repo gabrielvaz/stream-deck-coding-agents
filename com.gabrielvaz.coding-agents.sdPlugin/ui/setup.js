@@ -102,6 +102,7 @@
 	client.getConnectionInfo().then((info) => {
 		const action = info?.actionInfo?.action || "";
 		$("session-settings").hidden = !action.endsWith(".session");
+		$("limits-settings").hidden = !action.endsWith(".limits");
 		send({ event: "getStatus" });
 	});
 

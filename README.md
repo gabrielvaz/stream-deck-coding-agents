@@ -8,9 +8,9 @@
 One key per Claude Code, Codex, Antigravity or Gemini session: its state, timer, the tool it runs and the words it writes.<br />
 **Press to jump to it. Hold to approve.**
 
-Windows · macOS · WSL · SSH remotes &nbsp;|&nbsp; Stream Deck 7.1+ &nbsp;|&nbsp; Free and open source (MIT) &nbsp;|&nbsp; Nothing leaves your computer
+Windows · macOS · WSL · SSH remotes &nbsp;|&nbsp; Stream Deck 7.1+ &nbsp;|&nbsp; Free and open source (MIT) &nbsp;|&nbsp; No account, no telemetry
 
-[Website](https://gabrielvaz.github.io/stream-deck-coding-agents/) · [Download](https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest) · [Install](#install) · [Compatibility](#compatibility) · [Themes](#themes) · [FAQ](#troubleshooting) · [Português](#em-português)
+[Website](https://gabrielvaz.github.io/stream-deck-coding-agents/) · [Download](https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest) · [Install](#install) · [Compatibility](#compatibility) · [Themes](#themes) · [FAQ](#troubleshooting)
 
 <img src="docs/deck-pulse.gif" width="560" alt="A Stream Deck showing live coding-agent sessions in the Pulse theme" />
 
@@ -40,7 +40,6 @@ Windows · macOS · WSL · SSH remotes &nbsp;|&nbsp; Stream Deck 7.1+ &nbsp;|&nb
 - [How it works](#how-it-works)
 - [Development](#development)
 - [Publishing to the Elgato Marketplace](#publishing-to-the-elgato-marketplace)
-- [Em português](#em-português)
 
 ## What it does
 
@@ -71,6 +70,15 @@ Running several coding agents at once means constantly checking terminals to see
 | **Agents Overview** | `6 working`, `none waiting` or `2 waiting` and who, `3 done`, a count per agent, one pip per session | open the first session waiting for you | next page |
 | **Allow** / **Deny** | lit with the session and the command whenever a request can be answered | answer the oldest request | — |
 | **Next Page** | page and number of sessions | next page | back to page 1 |
+| **Agent Limits** | how much of the 5-hour and weekly limits is left (Claude Code, Codex) or of each model's quota (Antigravity), with a bar and the time until it resets | refresh now | refresh now |
+
+An **Agent Limits** key shows one agent; pick it in the key settings (*Limits of*) and place one key per agent. It reads the sign-in each agent already keeps on your computer, the same way the agents themselves do:
+
+- **Claude Code:** the account Claude Code is signed in with (macOS Keychain or `~/.claude/.credentials.json`), asked at `api.anthropic.com` once a minute.
+- **Codex:** the last limits Codex wrote to its own logs in `~/.codex`, so they update whenever a Codex session runs; the key says how old they are, and a window that has reset since then reads full.
+- **Antigravity:** the running Antigravity app on `127.0.0.1`, or the Google account from `agy login` when the app is closed. Its tiers (High, Medium, Low) share one bar per model; the two most used models are shown.
+
+The bar turns orange at 25 % left and red at 10 %.
 
 In **Automatic** mode, session keys fill by position (left to right, top to bottom) on each device. A key can also be pinned to "the 3rd session" or to one agent only (e.g. *Codex only*), so you can give each agent its own row.
 
@@ -193,7 +201,7 @@ All settings live in any key's settings and are shared by every key.
 ## Privacy and security
 
 - **Local only.** The endpoint listens on `127.0.0.1`, requires a random token stored in `~/.coding-agents-deck/endpoint.json` (readable only by your account; a new token each time Stream Deck starts), and rejects browser requests. Remote machines use a separate long-lived token kept in the plugin settings.
-- **No data collection.** No account, no analytics, no network calls. Session data stays in memory and is discarded when Stream Deck quits. Read the [privacy policy](marketplace/PRIVACY.md).
+- **No data collection.** No account, no analytics, no telemetry. Session data stays in memory and is discarded when Stream Deck quits. The only network calls come from an **Agent Limits** key: it asks Anthropic (Claude Code) or Google (Antigravity) for your own usage, with the sign-in that agent already keeps; Codex limits are read from local files. Without a limits key, nothing leaves your computer. Read the [privacy policy](marketplace/PRIVACY.md).
 - **Explicit changes only.** Agent settings are changed only when you press Connect, with backups, and Disconnect restores everything else as it was.
 - **The agent stays in charge.** Decisions are delivered to the hook that asked, or typed as keys in herdr; the agent's own permission rules still apply.
 
@@ -298,15 +306,6 @@ ci/ci.yml                GitHub Actions workflow (move to .github/workflows/ to 
 ## Publishing to the Elgato Marketplace
 
 Everything Maker Console asks for is in [`marketplace/`](marketplace/): listing text within Elgato's limits, the [privacy policy](marketplace/PRIVACY.md), the 288 px app icon, four 1920×960 gallery images and a [pre-submission checklist](marketplace/LISTING.md#before-submitting). Run `npm run pack`, then upload `dist/com.gabrielvaz.coding-agents.streamDeckPlugin`.
-
-## Em português
-
-**Coding Agents** é um plugin para o Elgato Stream Deck que mostra cada sessão de Claude Code, Codex, Antigravity CLI e Gemini CLI numa tecla viva: estado com cronômetro, a ferramenta que está rodando, o texto sendo escrito e uma animação que se mexe enquanto o agente trabalha. **Apertar abre a janela da sessão; segurar aprova o pedido de permissão.**
-
-- **Instalação:** dois cliques no `.streamDeckPlugin` da [release](https://github.com/gabrielvaz/stream-deck-coding-agents/releases/latest). Depois arraste *Agents Overview* e algumas *Agent Session* para o Stream Deck, abra as configurações de uma tecla e clique em **Connect** em cada agente (no Codex, rode `/hooks` uma vez para confiar nos hooks).
-- **Temas:** Pulse (padrão, a luz pulsa enquanto trabalha), Glow, Clawd (um mascote em pixel art que digita, escreve, acena, dorme e comemora) e Minimal.
-- **Compatibilidade:** Windows, macOS, agentes dentro do WSL e servidores via SSH. Pelo herdr, também Cursor, Copilot, OpenCode, Droid, Amp, Grok, Kiro, Qwen, Cline, Pi e outros. Sessões em segundo plano do Claude Code aparecem pelo `claude agents`.
-- **Privacidade:** tudo roda no seu computador, sem conta e sem telemetria. Não precisa de Node.js instalado, porque usa o runtime do próprio Stream Deck.
 
 ## Credits
 

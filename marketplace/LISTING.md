@@ -30,7 +30,7 @@ Four themes: Pulse, Glow, Clawd (a pixel critter that types, waves, sleeps and c
 
 Setup in one click: press Connect next to each agent in a key's settings. The plugin adds its hooks with a backup and uses Stream Deck's built-in Node.js, so there is nothing else to install. Works with agents in WSL, on servers over SSH, and every agent herdr runs (Cursor, Copilot, OpenCode and more).
 
-Private: everything stays on your computer. No account, no analytics.
+Private: sessions stay on your computer. No account, no analytics. An Agent Limits key shows how much of your 5-hour and weekly limits is left.
 
 Requirements: Stream Deck 7.1+ on Windows 10+ or macOS 12+, and Claude Code, Codex CLI, Antigravity CLI, Gemini CLI or herdr.
 ```

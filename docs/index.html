@@ -188,7 +188,7 @@
 					<img alt="" /><img alt="Agents overview key" /><img alt="Allow key" /><img alt="Deny key" /><img alt="Next page key" />
 				</div>
 			</div>
-			<div class="wrap meta"><span>Windows · macOS · WSL · SSH</span><span>Stream Deck 7.1+</span><span>Claude Code · Codex · Antigravity · Gemini · herdr</span><span>Nothing leaves your computer</span></div>
+			<div class="wrap meta"><span>Windows · macOS · WSL · SSH</span><span>Stream Deck 7.1+</span><span>Claude Code · Codex · Antigravity · Gemini · herdr</span><span>No account, no telemetry</span></div>
 		</header>
 
 		<section id="states">
@@ -220,7 +220,7 @@
 					<div class="card"><div class="icon">⚡</div><h3>One click per agent</h3><p>Press Connect in the key settings. The plugin adds its hooks (with a backup) and removes only its own entries when you disconnect. It uses Stream Deck's built-in Node.js, so there's nothing else to install.</p></div>
 					<div class="card"><div class="icon">◎</div><h3>Everywhere you code</h3><p>Windows, macOS, agents inside WSL, and servers you reach over SSH. A remote machine needs only curl and python3.</p></div>
 					<div class="card"><div class="icon">⧉</div><h3>24+ agents through herdr</h3><p>Running agents in herdr? Cursor, Copilot, OpenCode, Droid, Amp, Grok, Kiro, Qwen, Cline, Pi and more show up too, and the keys can answer their prompts.</p></div>
-					<div class="card"><div class="icon">⛨</div><h3>Private by design</h3><p>A local endpoint on 127.0.0.1 with a token only your account can read. No account, no analytics, no network calls.</p></div>
+					<div class="card"><div class="icon">⛨</div><h3>Private by design</h3><p>A local endpoint on 127.0.0.1 with a token only your account can read. No account, no analytics. Only an Agent Limits key asks Anthropic or Google for your own usage.</p></div>
 				</div>
 			</div>
 		</section>
@@ -265,7 +265,7 @@
 				<details><summary>Can a key approve something by accident?</summary><p>Approving needs a deliberate hold (a green bar fills) or the dedicated Allow key, and the key shows the exact command first. A timeout never decides anything.</p></details>
 				<details><summary>Which Stream Decks are supported?</summary><p>All keypad models: Original, MK.2, XL, Mini, Neo, Stream Deck +, Studio, plus the mobile and virtual Stream Deck. Text gets larger automatically on 72 px keys.</p></details>
 				<details><summary>Does it work with Claude Code in WSL or on a remote server?</summary><p>Yes. WSL distros get their own Connect rows on Windows. For a server, the settings show an <code>ssh -R</code> command and a one-line setup to run there.</p></details>
-				<details><summary>Is my data sent anywhere?</summary><p>No. Everything stays on your computer. See the <a href="https://github.com/gabrielvaz/stream-deck-coding-agents/blob/main/marketplace/PRIVACY.md">privacy policy</a>.</p></details>
+				<details><summary>Is my data sent anywhere?</summary><p>No. Session data stays on your computer. The one exception is the Agent Limits key: it asks Anthropic (Claude Code) or Google (Antigravity) for your own usage, with the sign-in the agent already keeps. See the <a href="https://github.com/gabrielvaz/stream-deck-coding-agents/blob/main/marketplace/PRIVACY.md">privacy policy</a>.</p></details>
 			</div>
 		</section>
 

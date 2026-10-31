@@ -2,9 +2,9 @@
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"UUID": "com.gabrielvaz.coding-agents",
 	"Name": "Coding Agents",
-	"Version": "1.1.0.0",
+	"Version": "1.2.0.0",
 	"Author": "Gabriel Vaz",
-	"Description": "Live keys for your AI coding agents: Claude Code, Codex, Antigravity CLI and Gemini CLI. Each key shows one session with its state, timer, current tool or streamed text and a breathing light. Press to open the session's window, hold to approve a permission request.",
+	"Description": "Live keys for your AI coding agents: Claude Code, Codex, Antigravity CLI and Gemini CLI. Each key shows one session with its state, timer, current tool or streamed text and a breathing light. Press to open the session's window, hold to approve a permission request. A limits key shows how much of the 5-hour and weekly usage is left.",
 	"URL": "https://github.com/gabrielvaz/stream-deck-coding-agents",
 	"SupportURL": "https://github.com/gabrielvaz/stream-deck-coding-agents/issues",
 	"Icon": "imgs/plugin/marketplace",
@@ -117,6 +117,24 @@
 			"States": [
 				{
 					"Image": "imgs/actions/page-key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Agent Limits",
+			"UUID": "com.gabrielvaz.coding-agents.limits",
+			"Icon": "imgs/actions/limits",
+			"Tooltip": "How much of the 5-hour and weekly limits is left (Claude Code, Codex) or of each model's quota (Antigravity), and when they reset. Press: refresh.",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"SupportedInMultiActions": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/limits-key",
 					"ShowTitle": false
 				}
 			]

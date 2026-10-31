@@ -61,6 +61,7 @@ const actionIcons = {
 	allow: `<path d="M4 10.5 l4 4 8-9" fill="none" stroke="${W}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`,
 	deny: `<path d="M5 5 l10 10 M15 5 l-10 10" fill="none" stroke="${W}" stroke-width="2.2" stroke-linecap="round"/>`,
 	page: `<rect x="2" y="4" width="11" height="12" rx="2.5" fill="none" stroke="${W}" stroke-width="1.6"/><path d="M14 7 l3.5 3 -3.5 3" fill="none" stroke="${W}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+	limits: `<rect x="2" y="3.5" width="16" height="5" rx="2.5" fill="none" stroke="${W}" stroke-width="1.4"/><rect x="2" y="3.5" width="11" height="5" rx="2.5" fill="${W}"/><rect x="2" y="11.5" width="16" height="5" rx="2.5" fill="none" stroke="${W}" stroke-width="1.4"/><rect x="2" y="11.5" width="6" height="5" rx="2.5" fill="${W}"/>`,
 };
 
 // ------------------------------------------------------------------------------------------- default key images
@@ -75,6 +76,19 @@ const keyImages = {
 	"allow-key": lib.decisionTile("allow", null, ctx),
 	"deny-key": lib.decisionTile("deny", null, ctx),
 	"page-key": lib.pageTile(0, 1, 0),
+	"limits-key": lib.limitsTile(
+		{
+			provider: "claude",
+			status: "ok",
+			updatedAt: ctx.now,
+			note: "",
+			windows: [
+				{ label: "5h", usedPercent: 28, resetsAt: ctx.now + 3 * 3_600_000 + 12 * 60_000, windowMinutes: 300 },
+				{ label: "Week", usedPercent: 41, resetsAt: ctx.now + 4 * 86_400_000 + 2 * 3_600_000, windowMinutes: 10080 },
+			],
+		},
+		ctx,
+	),
 };
 store.close();
 

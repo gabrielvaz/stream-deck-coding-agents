@@ -1,7 +1,7 @@
 import { AGENTS, type AgentId, type AgentInfo, HOOK_AGENTS } from "./core/agents";
 import { isTheme, safeColor, type ThemeId } from "./render/tiles";
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
 export const DEFAULT_PORT = 47821;
 
 /** Plugin-wide settings, edited in the property inspector (sdpi `global` fields, flat keys). */
@@ -24,10 +24,11 @@ export type GlobalSettings = {
 	[key: string]: unknown;
 };
 
-/** Per-key settings of the session action. */
+/** Per-key settings of the session action (slot, agent) and of the limits action (provider). */
 export type SessionKeySettings = {
 	slot?: string;
 	agent?: string;
+	provider?: string;
 };
 
 export type Resolved = {

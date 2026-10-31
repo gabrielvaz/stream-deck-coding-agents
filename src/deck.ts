@@ -10,14 +10,16 @@ import type { AgentId } from "./core/agents";
 import { clearDemo, runDemo } from "./core/demo";
 import { ClaudeLister, HerdrBridge } from "./core/discovery";
 import { WindowFocuser } from "./core/focus";
+import { isLimitProvider, type LimitProvider, LimitsWatcher } from "./core/limits";
 import { type AgentStatus, install, type InstallOptions, listWslDistros, nativeTargets, prepareRuntime, prepareWsl, type Runtime, runtimeFor, status, type Target, uninstall, type WslDistro, wslTargets } from "./core/installer";
 import { remoteCommands } from "./core/remote";
 import { HookServer } from "./core/server";
 import { type Session, SessionStore } from "./core/store";
+import { limitsTile } from "./render/limits";
 import { decisionTile, emptyTile, hubTile, pageTile, type RenderContext, sessionTile, toDataUrl } from "./render/tiles";
 import { type GlobalSettings, type Resolved, resolveSettings, type SessionKeySettings, VERSION } from "./settings";
 
-export type KeyKind = "session" | "hub" | "allow" | "deny" | "page";
+export type KeyKind = "session" | "hub" | "allow" | "deny" | "page" | "limits";
 
 /** The slice of a Stream Deck key the deck needs (keeps this file independent of the SDK). */
 export type KeyHandle = {
@@ -52,6 +54,7 @@ export class Deck {
 	readonly server: HookServer;
 	readonly herdr: HerdrBridge;
 	readonly claudeList: ClaudeLister;
+	readonly limits: LimitsWatcher;
 	readonly keys = new Map<string, Key>();
 	settings: Resolved;
 	raw: GlobalSettings = {};
@@ -95,6 +98,7 @@ export class Deck {
 			if (this.settings.claudeList === "on") return true;
 			return !this.statuses.some((s) => s.agent === "claude" && !s.where && s.installed);
 		});
+		this.limits = new LimitsWatcher(() => this.requestFrame(), (m) => log.warn(m));
 		this.rt = runtimeFor();
 		this.store.on("change", () => this.requestFrame());
 	}
@@ -125,6 +129,7 @@ export class Deck {
 		if (this.timer) clearInterval(this.timer);
 		this.herdr.stop();
 		this.claudeList.stop();
+		this.limits.stop();
 		this.store.close();
 		this.focuser.dispose();
 		await this.server.close();
@@ -283,6 +288,7 @@ export class Deck {
 
 	addKey(kind: KeyKind, handle: KeyHandle, settings: SessionKeySettings = {}): void {
 		this.keys.set(handle.id, { kind, handle, settings, last: "", lastAt: 0, down: null });
+		this.watchLimits();
 		this.requestFrame();
 	}
 
@@ -291,6 +297,7 @@ export class Deck {
 		if (!key) return;
 		key.settings = settings;
 		key.last = "";
+		this.watchLimits();
 		this.requestFrame();
 	}
 
@@ -298,7 +305,13 @@ export class Deck {
 		const key = this.keys.get(id);
 		if (key?.down) clearTimeout(key.down.timer);
 		this.keys.delete(id);
+		this.watchLimits();
 		this.requestFrame();
+	}
+
+	/** Only the providers that have a limits key are polled. */
+	private watchLimits(): void {
+		this.limits.watch([...this.keys.values()].filter((k) => k.kind === "limits").map(providerOf));
 	}
 
 	keyDown(id: string): void {
@@ -355,6 +368,11 @@ export class Deck {
 			case "page":
 				this.nextPage();
 				return;
+			case "limits": {
+				const limits = await this.limits.refresh(providerOf(key));
+				void (limits.status === "ok" ? key.handle.showOk() : key.handle.showAlert());
+				return;
+			}
 		}
 	}
 
@@ -592,6 +610,9 @@ export class Deck {
 				case "page":
 					svg = pageTile(this.page, pages, all.length);
 					break;
+				case "limits":
+					svg = limitsTile(this.limits.get(providerOf(key)), ctx);
+					break;
 			}
 		}
 		return svg;
@@ -606,6 +627,10 @@ function smallKeys(deviceType: number): boolean {
 function slotOf(key: Key): number {
 	const n = Number(key.settings.slot);
 	return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+function providerOf(key: Key): LimitProvider {
+	return isLimitProvider(key.settings.provider) ? key.settings.provider : "claude";
 }
 
 function agentFilter(key: Key): string {

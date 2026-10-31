@@ -1,6 +1,6 @@
 import streamDeck from "@elgato/streamdeck";
 import type { JsonObject } from "@elgato/utils";
-import { AllowAction, bindDeck, DenyAction, HubAction, PageAction, SessionAction } from "./actions";
+import { AllowAction, bindDeck, DenyAction, HubAction, LimitsAction, PageAction, SessionAction } from "./actions";
 import { Deck } from "./deck";
 import type { GlobalSettings } from "./settings";
 
@@ -22,6 +22,7 @@ streamDeck.actions.registerAction(new HubAction());
 streamDeck.actions.registerAction(new AllowAction());
 streamDeck.actions.registerAction(new DenyAction());
 streamDeck.actions.registerAction(new PageAction());
+streamDeck.actions.registerAction(new LimitsAction());
 
 streamDeck.settings.onDidReceiveGlobalSettings((ev) => deck.applySettings(ev.settings as GlobalSettings));
 streamDeck.system.onSystemDidWakeUp(() => deck.requestFrame());

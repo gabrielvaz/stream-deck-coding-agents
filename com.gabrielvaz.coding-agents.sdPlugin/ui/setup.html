@@ -45,7 +45,7 @@
 			.cmd button:hover { background: #575757; }
 			.swatch-row { display: flex; gap: 6px; align-items: center; }
 			h4 { margin: 16px 0 6px; padding: 0 14px; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #9a9a9a !important; }
-			#session-settings > .note { padding: 0 14px; }
+			#session-settings > .note, #limits-settings > .note { padding: 0 14px; }
 		</style>
 	</head>
 	<body>
@@ -82,6 +82,18 @@
 				</sdpi-select>
 			</sdpi-item>
 			<p class="note">Order: waiting for you, working, just finished, done, idle. Keys keep their place for a moment after you press one.</p>
+		</div>
+
+		<div id="limits-settings" hidden>
+			<h4>This key</h4>
+			<sdpi-item label="Limits of">
+				<sdpi-select setting="provider" default="claude">
+					<option value="claude">Claude Code: 5 hours and week</option>
+					<option value="codex">Codex: 5 hours and week</option>
+					<option value="antigravity">Antigravity: quota per model</option>
+				</sdpi-select>
+			</sdpi-item>
+			<p class="note">Read from the sign-in each agent already keeps on this computer: Claude Code's account, Codex's last session, the running Antigravity app (or <code>agy login</code>). Bars show what is left; press the key to refresh. Codex numbers update when a Codex session runs.</p>
 		</div>
 
 		<h4>Agents</h4>

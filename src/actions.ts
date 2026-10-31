@@ -122,3 +122,8 @@ export class DenyAction extends DeckAction {
 export class PageAction extends DeckAction {
 	readonly kind = "page";
 }
+
+@action({ UUID: "com.gabrielvaz.coding-agents.limits" })
+export class LimitsAction extends DeckAction {
+	readonly kind = "limits";
+}

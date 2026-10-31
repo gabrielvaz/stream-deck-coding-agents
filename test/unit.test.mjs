@@ -124,6 +124,96 @@ describe("installer JSON", () => {
 	});
 });
 
+describe("usage limits", () => {
+	const now = Date.parse("2026-10-30T12:00:00Z");
+	it("Claude: 5-hour window and the most used weekly window", () => {
+		const limits = lib.mapClaudeUsage(
+			{
+				five_hour: { utilization: 12.5, resets_at: "2026-10-30T15:00:00Z" },
+				seven_day: { utilization: 20, resets_at: "2026-11-02T09:00:00Z" },
+				seven_day_opus: { utilization: 55, resets_at: "2026-11-02T09:00:00Z" },
+				seven_day_oauth_apps: null,
+			},
+			now,
+		);
+		assert.equal(limits.status, "ok");
+		assert.deepEqual(
+			limits.windows.map((w) => [w.label, w.usedPercent]),
+			[
+				["5h", 12.5],
+				["Week", 55],
+			],
+		);
+		assert.equal(lib.mapClaudeUsage({}, now).status, "none");
+	});
+	it("Codex: last rate_limits of a session log; windows that rolled over read 0 %", () => {
+		const event = (ts, primary, secondary) =>
+			JSON.stringify({ timestamp: ts, type: "event_msg", payload: { type: "token_count", rate_limits: { primary, secondary } } });
+		const log = [
+			event("2026-10-30T10:00:00Z", { used_percent: 5, window_minutes: 300, resets_at: 1793383200 }, { used_percent: 9, window_minutes: 10080, resets_at: 1793800000 }),
+			'{"type":"other"}',
+			event("2026-10-30T11:00:00Z", { used_percent: 30, window_minutes: 300, resets_at: Date.parse("2026-10-30T11:30:00Z") / 1000 }, { used_percent: 40, window_minutes: 10080, resets_at: 1793800000 }),
+		].join("\n");
+		const limits = lib.codexFromSessionLog(log, now);
+		assert.equal(limits.updatedAt, Date.parse("2026-10-30T11:00:00Z"));
+		const [five, week] = limits.windows;
+		assert.equal(five.label, "5h");
+		assert.equal(five.usedPercent, 0, "the 5-hour window reset at 11:30");
+		assert.equal(five.resetsAt, Date.parse("2026-10-30T16:30:00Z"));
+		assert.deepEqual([week.label, week.usedPercent], ["Week", 40]);
+		assert.equal(lib.codexFromSessionLog('{"type":"x"}', now), null);
+	});
+	it("Antigravity: one row per model family, most used first, no Gemini 2.x", () => {
+		const limits = lib.mapAntigravityModels(
+			[
+				{ label: "Claude Opus 5.5 (High)", model: "a", remainingFraction: 0.4, resetTime: "2026-10-30T17:00:00Z" },
+				{ label: "Claude Opus 5.5 (Low)", model: "b", remainingFraction: 0.9, resetTime: "2026-10-30T17:00:00Z" },
+				{ label: "Gemini 3 Pro (High)", model: "gemini-3-pro", remainingFraction: 1 },
+				{ label: "Gemini 2.5 Flash", model: "gemini-2.5-flash", remainingFraction: 0.1 },
+			],
+			now,
+		);
+		assert.deepEqual(
+			limits.windows.map((w) => [w.label, Math.round(w.usedPercent)]),
+			[
+				["Opus 5.5", 60],
+				["Gemini 3 Pro", 0],
+			],
+		);
+		assert.equal(lib.mapAntigravityModels([], now).status, "none");
+	});
+	it("draws what is left and when it resets", () => {
+		const ctx = { now, palette: lib.AGENTS, animate: false };
+		const svg = lib.limitsTile({ provider: "claude", status: "ok", updatedAt: now, note: "", windows: [{ label: "5h", usedPercent: 92, resetsAt: now + 3 * 3_600_000 + 12 * 60_000, windowMinutes: 300 }] }, ctx);
+		assert.match(svg, /8%/);
+		assert.match(svg, /resets 3h 12m/);
+		assert.match(svg, new RegExp(lib.ERROR), "almost used up → red bar");
+		assert.match(lib.limitsTile({ provider: "codex", status: "none", updatedAt: 0, note: "Run Codex once", windows: [] }, ctx), /Run Codex once/);
+		assert.equal(lib.fmtReset(4 * 86_400_000 + 2 * 3_600_000), "4d 2h");
+	});
+	it("the watcher polls only providers with a key and keeps good numbers through errors", async () => {
+		let calls = 0;
+		let fail = false;
+		const good = { provider: "claude", status: "ok", windows: [], updatedAt: 1, note: "" };
+		const watcher = new lib.LimitsWatcher(() => {}, () => {}, {
+			claude: async () => {
+				calls++;
+				if (fail) throw new Error("offline");
+				return good;
+			},
+			codex: async () => assert.fail("codex has no key"),
+			antigravity: async () => assert.fail("antigravity has no key"),
+		});
+		assert.equal(watcher.get("claude").status, "loading");
+		watcher.watch(["claude"]);
+		await lib.sleep(10);
+		assert.equal(calls, 1);
+		fail = true;
+		assert.equal((await watcher.refresh("claude")).status, "ok");
+		watcher.stop();
+	});
+});
+
 describe("versions", () => {
 	it("manifest, package.json and the plugin agree", () => {
 		const manifest = JSON.parse(readFileSync(join(root, "com.gabrielvaz.coding-agents.sdPlugin", "manifest.json"), "utf8"));
